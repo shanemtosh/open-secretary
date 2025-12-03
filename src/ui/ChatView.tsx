@@ -153,7 +153,9 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     const [verboseToolOutput, setVerboseToolOutput] = React.useState(false); // Toggle state
 
     const messagesEndRef = React.useRef<HTMLDivElement>(null);
+    const messagesContainerRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLTextAreaElement>(null);
+    const inputWrapperRef = React.useRef<HTMLDivElement>(null);
     const dropdownRef = React.useRef<HTMLDivElement>(null);
 
     // Suggestions state
@@ -172,6 +174,22 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
             agent.saveSession();
         }
     }, [messages, loading]);
+
+    React.useEffect(() => {
+        const updatePadding = () => {
+            if (inputWrapperRef.current && messagesContainerRef.current) {
+                const wrapperHeight = inputWrapperRef.current.offsetHeight;
+                messagesContainerRef.current.style.paddingBottom = `${wrapperHeight + 32}px`;
+            }
+        };
+
+        updatePadding();
+        const resizeObserver = new ResizeObserver(updatePadding);
+        if (inputWrapperRef.current) {
+            resizeObserver.observe(inputWrapperRef.current);
+        }
+        return () => resizeObserver.disconnect();
+    }, [plan, showPlan, showSuggestions, approvalRequest]);
 
     // Close dropdowns when clicking outside
     React.useEffect(() => {
@@ -221,24 +239,35 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         setCurrentModel(agent.modelName);
     }, [agent]);
 
-    // Hotkey listener for Mode Cycling and Output Toggle
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Alt/Option + V: Toggle verbose output
+            if (approvalRequest) {
+                if (e.key === 'y' || e.key === 'Y') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleApproval(true);
+                    return;
+                }
+                if (e.key === 'n' || e.key === 'N') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleApproval(false);
+                    return;
+                }
+            }
+
             if (e.altKey && e.code === 'KeyV') {
                 e.preventDefault();
                 setVerboseToolOutput(prev => !prev);
                 new Notice(verboseToolOutput ? "Tool output: Compact" : "Tool output: Verbose");
-            }
-            // Shift + Tab: Cycle mode
-            else if (e.shiftKey && e.key === "Tab") {
+            } else if (e.shiftKey && e.key === "Tab") {
                 e.preventDefault();
                 cycleMode();
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [agent, mode, verboseToolOutput]);
+    }, [agent, mode, verboseToolOutput, approvalRequest]);
 
     const cycleMode = () => {
         const modes: AgentMode[] = ["high", "plan", "low"];
@@ -822,7 +851,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
     return (
         <div className="agent-chat-container">
-            <div className="agent-chat-messages">
+            <div className="agent-chat-messages" ref={messagesContainerRef}>
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`agent-message ${msg.role} ${msg.type === "tool" ? "tool" : ""}`}>
                         <div className="message-content">
@@ -871,7 +900,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="agent-input-wrapper" ref={dropdownRef}>
+            <div className="agent-input-wrapper" ref={(el) => { inputWrapperRef.current = el; (dropdownRef as React.MutableRefObject<HTMLDivElement | null>).current = el; }}>
                 {/* Plan Card */}
                 {plan && (
                     <div className={`agent-plan-card ${showPlan ? "expanded" : "collapsed"}`}>

@@ -92,7 +92,7 @@
 	flex-direction: column;
 	gap: 1.5rem;
 	/* Increased gap */
-	padding-bottom: 10rem;
+	padding-bottom: 10rem; /* Fallback, dynamically adjusted by JS */
 	padding-top: 2rem;
 }
 
