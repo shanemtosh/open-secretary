@@ -6,11 +6,11 @@ An autonomous AI agent system for [Obsidian](https://obsidian.md). Interact with
 
 ## Features
 
-- 🤖 **Autonomous Agent** - AI-powered assistant that understands context and executes tasks
-- 📝 **File Operations** - Read, write, edit, and organize files in your vault
-- 🔍 **Smart Search** - Semantic search across your notes
-- 🔄 **Sub-Agents** - Specialized agents for research, writing, and exploration
-- ⚙️ **Flexible Models** - Support for multiple LLM providers via OpenRouter
+- **Autonomous Agent** - AI-powered assistant that understands context and executes tasks
+- **File Operations** - Read, write, edit, and organize files in your vault
+- **Smart Search** - Semantic search across your notes
+- **Sub-Agents** - Specialized agents for research, writing, and exploration
+- **Flexible Models** - Support for multiple LLM providers via OpenRouter
 
 ## Installation
 
@@ -32,10 +32,10 @@ An autonomous AI agent system for [Obsidian](https://obsidian.md). Interact with
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)** for free use, modification, and distribution by the community. See the [LICENSE](LICENSE) file for the complete license text.
 
 **This means:**
-- ✅ You can use, modify, and share it freely
-- ✅ Ideal for personal use, hobby projects, and open source projects
-- ⚠️ Any derivatives (including SaaS/network use) must also be AGPLv3 and share source code
-- ⚠️ You must provide access to the source code for any network-accessible deployment
+- You can use, modify, and share it freely
+- Ideal for personal use, hobby projects, and open source projects
+- Any derivatives (including SaaS/network use) must also be AGPLv3 and share source code
+- You must provide access to the source code for any network-accessible deployment
 
 ### Commercial License
 
@@ -77,9 +77,9 @@ npm run build
 
 ## Support
 
-- 📖 [Documentation](https://opensecretary.com/docs)
-- 🐛 [Issue Tracker](https://github.com/opensecretary/open-secretary/issues)
-- 💬 [Discussions](https://github.com/opensecretary/open-secretary/discussions)
+- [Documentation](https://opensecretary.com/docs)
+- [Issue Tracker](https://github.com/opensecretary/open-secretary/issues)
+- [Discussions](https://github.com/opensecretary/open-secretary/discussions)
 
 ---
 
