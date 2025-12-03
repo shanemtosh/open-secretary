@@ -43,6 +43,8 @@ export class LLMService {
             headers: {
                 "Authorization": `Bearer ${this.apiKey}`,
                 "Content-Type": "application/json",
+                "HTTP-Referer": "https://opensecretary.com",
+                "X-Title": "OpenSecretary",
             },
             body: JSON.stringify(requestBody),
         };
