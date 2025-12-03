@@ -11,6 +11,8 @@ import { ReadFileTool, WriteFileTool, DeleteFileTool, MoveFileTool, ListDirTool,
 import { SearchFilesTool } from "./tools/SearchTool";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
 
+type ViewPosition = "right" | "left" | "main";
+
 interface AgentPluginSettings {
     openRouterApiKey: string;
     model: string;
@@ -18,6 +20,7 @@ interface AgentPluginSettings {
     contextFile: string;
     historyFolder: string;
     researchModel: string;
+    viewPosition: ViewPosition;
 }
 
 const DEFAULT_SETTINGS: AgentPluginSettings = {
@@ -26,7 +29,8 @@ const DEFAULT_SETTINGS: AgentPluginSettings = {
     availableModels: "x-ai/grok-4-fast,anthropic/claude-sonnet-4.5,anthropic/claude-haiku-4.5",
     contextFile: "AGENTS.md",
     historyFolder: ".obsidian/plugins/open-secretary/history",
-    researchModel: "perplexity/sonar"
+    researchModel: "perplexity/sonar",
+    viewPosition: "right"
 }
 
 export default class AgentPlugin extends Plugin {
@@ -76,9 +80,19 @@ export default class AgentPlugin extends Plugin {
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_CHAT)[0];
 
         if (!leaf) {
-            const rightLeaf = workspace.getRightLeaf(false);
-            if (rightLeaf) {
-                leaf = rightLeaf;
+            switch (this.settings.viewPosition) {
+                case "left":
+                    leaf = workspace.getLeftLeaf(false);
+                    break;
+                case "main":
+                    leaf = workspace.getLeaf("tab");
+                    break;
+                case "right":
+                default:
+                    leaf = workspace.getRightLeaf(false);
+                    break;
+            }
+            if (leaf) {
                 await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
             }
         }
@@ -180,6 +194,19 @@ class AgentSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.researchModel)
                 .onChange(async (value) => {
                     this.plugin.settings.researchModel = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("View Position")
+            .setDesc("Where to open the chat view (useful for mobile)")
+            .addDropdown(dropdown => dropdown
+                .addOption("right", "Right Sidebar")
+                .addOption("left", "Left Sidebar")
+                .addOption("main", "Main Tab")
+                .setValue(this.plugin.settings.viewPosition)
+                .onChange(async (value: ViewPosition) => {
+                    this.plugin.settings.viewPosition = value;
                     await this.plugin.saveSettings();
                 }));
     }
