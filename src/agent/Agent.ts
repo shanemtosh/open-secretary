@@ -342,11 +342,13 @@ IMPORTANT RULES:
 
             if (toolCallStr) {
                 try {
-                    const toolCall = JSON.parse(toolCallStr);
-                    if (toolCall.tool && this.tools.has(toolCall.tool)) {
+                    const cleanedStr = toolCallStr.trim();
+                    const toolCall = JSON.parse(cleanedStr);
+                    if (toolCall.tool) {
                         const tool = this.tools.get(toolCall.tool);
-                        if (tool) {
-                            // Check for destructive tools in Low/Plan mode
+                        if (!tool) {
+                            console.warn(`Tool '${toolCall.tool}' not found in registered tools`);
+                        } else {
                             const destructiveTools = ["write_file", "edit_file", "append_file", "delete_file", "move_file", "create_dir"];
                             const isDestructive = destructiveTools.includes(tool.name);
 
@@ -374,8 +376,9 @@ IMPORTANT RULES:
                             let result;
                             try {
                                 result = await tool.execute(toolCall.args);
-                            } catch (toolError: any) {
-                                result = `Error executing tool ${tool.name}: ${toolError.message}`;
+                            } catch (toolError: unknown) {
+                                const errorMessage = toolError instanceof Error ? toolError.message : String(toolError);
+                                result = `Error executing tool ${tool.name}: ${errorMessage}`;
                             }
 
                             this.onToolFinish(tool.name, result);
@@ -383,14 +386,11 @@ IMPORTANT RULES:
                             const observation = `Observation: ${JSON.stringify(result)} `;
                             this.history.push({ role: "user", content: observation });
 
-                            // Recurse to get final answer
                             return this.chat("Proceed with the observation.");
                         }
                     }
-                } catch (e) {
-                    // Not a JSON tool call, or parsing failed.
-                    // If we found a toolCallStr but failed to parse, we might want to warn.
-                    // But for now, we'll just return the response as is, assuming it might be text.
+                } catch (parseError) {
+                    console.warn("Failed to parse tool call JSON:", parseError);
                 }
             }
 

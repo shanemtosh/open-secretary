@@ -14,7 +14,8 @@ import {
     TFile,
     setIcon,
     Menu,
-    Component
+    Component,
+    Platform
 } from "obsidian";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
@@ -412,7 +413,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     const handleCancel = () => {
         agent.stop();
         setLoading(false);
-        setMessages(prev => [...prev, { role: "assistant", content: "🛑 Action cancelled by user." }]);
+        setMessages(prev => [...prev, { role: "assistant", content: "Action cancelled by user." }]);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -850,7 +851,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     };
 
     return (
-        <div className="agent-chat-container">
+        <div className={`agent-chat-container ${Platform.isMobile ? "mobile" : ""}`}>
             <div className="agent-chat-messages" ref={messagesContainerRef}>
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`agent-message ${msg.role} ${msg.type === "tool" ? "tool" : ""}`}>
@@ -965,32 +966,18 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                     </div>
                 )}
 
-                <div className="agent-ai03-container">
-                    <div className="agent-ai03-input-area">
-                        <textarea
-                            ref={inputRef}
-                            className="agent-ai03-textarea"
-                            value={input}
-                            onChange={handleInputChange}
-                            onKeyDown={handleKeyDown}
-                            placeholder="How can I help you today?"
-                            rows={1}
-                        />
-                    </div>
-
-                    <div className="agent-ai03-footer">
-                        <div className="agent-ai03-left-actions">
-                            <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "model" ? null : "model")}>
-                                <span className="agent-model-name">{currentModel.split("/").pop()}</span>
-                                <IconChevronDown size={14} style={{ opacity: 0.5 }} />
-                            </button>
-
-                            <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "mode" ? null : "mode")}>
-                                <span className="agent-model-name">{mode === "high" ? "High" : (mode === "low" ? "Low" : "Plan")}</span>
-                                <IconChevronDown size={14} style={{ opacity: 0.5 }} />
-                            </button>
-                        </div>
-                        <div className="agent-ai03-right-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div className={`agent-ai03-container ${Platform.isMobile ? "mobile" : ""}`}>
+                    {Platform.isMobile ? (
+                        <div className="agent-mobile-input-row">
+                            <textarea
+                                ref={inputRef}
+                                className="agent-ai03-textarea"
+                                value={input}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Message..."
+                                rows={1}
+                            />
                             <button
                                 className="agent-btn-send"
                                 onClick={loading ? handleCancel : handleSubmit}
@@ -1000,12 +987,50 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 {loading ? <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} /> : <IconArrowUp size={18} />}
                             </button>
                         </div>
-                    </div>
+                    ) : (
+                        <>
+                            <div className="agent-ai03-input-area">
+                                <textarea
+                                    ref={inputRef}
+                                    className="agent-ai03-textarea"
+                                    value={input}
+                                    onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="How can I help you today?"
+                                    rows={1}
+                                />
+                            </div>
 
-                    <div className="agent-ai03-bottom-row">
-                        <div>Shift+Tab: Cycle Mode</div>
-                        <div>{loading ? "Cmd+Esc: Cancel" : "Shift+Enter: New Line"}</div>
-                    </div>
+                            <div className="agent-ai03-footer">
+                                <div className="agent-ai03-left-actions">
+                                    <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "model" ? null : "model")}>
+                                        <span className="agent-model-name">{currentModel.split("/").pop()}</span>
+                                        <IconChevronDown size={14} style={{ opacity: 0.5 }} />
+                                    </button>
+
+                                    <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "mode" ? null : "mode")}>
+                                        <span className="agent-model-name">{mode === "high" ? "High" : (mode === "low" ? "Low" : "Plan")}</span>
+                                        <IconChevronDown size={14} style={{ opacity: 0.5 }} />
+                                    </button>
+                                </div>
+                                <div className="agent-ai03-right-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <button
+                                        className="agent-btn-send"
+                                        onClick={loading ? handleCancel : handleSubmit}
+                                        disabled={!input.trim() && !loading}
+                                        style={{ backgroundColor: loading ? "var(--destructive)" : "var(--claude-send-btn)" }}
+                                    >
+                                        {loading ? <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} /> : <IconArrowUp size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="agent-ai03-bottom-row">
+                                <div>Shift+Tab: Cycle Mode</div>
+                                <div>{loading ? "Cmd+Esc: Cancel" : "Shift+Enter: New Line"}</div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
