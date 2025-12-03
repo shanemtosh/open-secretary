@@ -5,7 +5,7 @@
  * Licensed under AGPLv3 - see LICENSE file for details.
  */
 
-import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, Platform, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { Agent } from "./agent/Agent";
 import { ReadFileTool, WriteFileTool, DeleteFileTool, MoveFileTool, ListDirTool, CreateDirTool, EditFileTool, AppendFileTool } from "./tools/FileTools";
 import { SearchFilesTool } from "./tools/SearchTool";
@@ -80,26 +80,17 @@ export default class AgentPlugin extends Plugin {
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_CHAT)[0];
 
         if (!leaf) {
-            switch (this.settings.viewPosition) {
-                case "left":
-                    leaf = workspace.getLeftLeaf(false);
-                    break;
-                case "main":
-                    leaf = workspace.getLeaf("tab");
-                    break;
-                case "right":
-                default:
-                    leaf = workspace.getRightLeaf(false);
-                    break;
+            if (Platform.isMobile || this.settings.viewPosition === "main") {
+                leaf = workspace.getLeaf("tab");
+            } else if (this.settings.viewPosition === "left") {
+                leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf("tab");
+            } else {
+                leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
             }
-            if (leaf) {
-                await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
-            }
+            await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
         }
 
-        if (leaf) {
-            workspace.revealLeaf(leaf);
-        }
+        workspace.revealLeaf(leaf);
     }
 
     onunload() {
