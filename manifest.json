@@ -1,0 +1,10 @@
+{
+	"id": "open-secretary",
+	"name": "OpenSecretary",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Interact with your vault using an autonomous AI agent.",
+	"author": "OpenSecretary",
+	"authorUrl": "https://opensecretary.com",
+	"isDesktopOnly": true
+}
