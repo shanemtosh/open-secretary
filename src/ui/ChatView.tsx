@@ -177,6 +177,8 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     }, [messages, loading]);
 
     React.useEffect(() => {
+        if (Platform.isMobile) return;
+
         const updatePadding = () => {
             if (inputWrapperRef.current && messagesContainerRef.current) {
                 const wrapperHeight = inputWrapperRef.current.offsetHeight;
@@ -342,6 +344,36 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
             }
         }
 
+        // Sub-command suggestions for /mode
+        if (value.trim().startsWith("/mode")) {
+            const parts = value.split(" ");
+            if (parts.length === 2) {
+                const query = parts[1].toLowerCase();
+                setSuggestionType("subcommand");
+                const options = ["high", "low", "plan"];
+                const matches = options.filter(o => o.toLowerCase().startsWith(query));
+                setSuggestions(matches);
+                setShowSuggestions(matches.length > 0);
+                setSuggestionIndex(0);
+                return;
+            }
+        }
+
+        // Sub-command suggestions for /model
+        if (value.trim().startsWith("/model")) {
+            const parts = value.split(" ");
+            if (parts.length === 2) {
+                const query = parts[1].toLowerCase();
+                setSuggestionType("subcommand");
+                const options = agent.availableModels.map(m => m.split("/").pop() || m);
+                const matches = options.filter(o => o.toLowerCase().startsWith(query));
+                setSuggestions(matches);
+                setShowSuggestions(matches.length > 0);
+                setSuggestionIndex(0);
+                return;
+            }
+        }
+
         // Sub-command suggestions for /load
         if (value.trim().startsWith("/load")) {
             const parts = value.split(" ");
@@ -373,7 +405,9 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
             const commandDefinitions = [
                 { command: "/help", description: "Show help & hotkeys", aliases: ["/h", "/?"] },
                 { command: "/new", description: "Clear chat & start fresh", aliases: ["/clear", "/reset", "/n"] },
-                { command: "/history", description: "List saved sessions", aliases: ["/saved", "/h"] },
+                { command: "/mode", description: "Set autonomy mode", aliases: ["/m"] },
+                { command: "/model", description: "Set AI model", aliases: [] },
+                { command: "/history", description: "List saved sessions", aliases: ["/saved"] },
                 { command: "/init", description: "Run initialization routine", aliases: [] },
                 { command: "/stop", description: "Stop current execution", aliases: ["/cancel", "/s"] },
                 { command: "/output", description: "Set tool output verbosity", aliases: ["/o"] },
@@ -493,17 +527,12 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
             }
 
             if (command === "/help") {
-                const helpContent = `## Hotkeys
-
-- **Shift+Tab**: Cycle mode (High → Plan → Low)
-- **Alt/Option+V**: Toggle verbose tool output
-- **Shift+Enter**: New line in input
-- **Cmd/Ctrl+Esc**: Cancel running agent
-
-## Slash Commands
+                const helpContent = `## Slash Commands
 
 - **/help** - Show this help message
 - **/new** - Start a new conversation
+- **/mode [high|low|plan]** - Set autonomy mode
+- **/model [name]** - Set AI model
 - **/history** - List saved sessions
 - **/init** - Run initialization routine
 - **/stop** - Stop the current agent execution
@@ -516,7 +545,14 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
 ## File References
 
-- Type **@** to search and reference files in your vault`;
+- Type **@** to search and reference files in your vault
+
+## Hotkeys (Desktop)
+
+- **Shift+Tab**: Cycle mode
+- **Alt/Option+V**: Toggle verbose tool output
+- **Shift+Enter**: New line in input
+- **Cmd/Ctrl+Esc**: Cancel running agent`;
 
                 setMessages(prev => [...prev, { role: "assistant", content: helpContent }]);
                 setInput("");
@@ -535,16 +571,60 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
             if (command === "/output") {
                 const parts = userMsg.trim().split(" ");
-                const mode = parts[1];
+                const outputMode = parts[1];
 
-                if (mode === "verbose") {
+                if (outputMode === "verbose") {
                     setVerboseToolOutput(true);
                     setMessages(prev => [...prev, { role: "assistant", content: "Tool output set to **verbose**." }]);
-                } else if (mode === "compact") {
+                } else if (outputMode === "compact") {
                     setVerboseToolOutput(false);
                     setMessages(prev => [...prev, { role: "assistant", content: "Tool output set to **compact**." }]);
                 } else {
                     setMessages(prev => [...prev, { role: "assistant", content: "Usage: `/output verbose` or `/output compact`" }]);
+                }
+
+                setInput("");
+                if (inputRef.current) inputRef.current.style.height = "auto";
+                return;
+            }
+
+            if (command === "/mode") {
+                const parts = userMsg.trim().split(" ");
+                const newMode = parts[1]?.toLowerCase();
+
+                if (newMode === "high" || newMode === "low" || newMode === "plan") {
+                    agent.setMode(newMode);
+                    setMessages(prev => [...prev, { role: "assistant", content: `Mode set to **${newMode.toUpperCase()}**.` }]);
+                } else {
+                    setMessages(prev => [...prev, { role: "assistant", content: `Usage: \`/mode high\`, \`/mode low\`, or \`/mode plan\`\n\nCurrent mode: **${mode.toUpperCase()}**` }]);
+                }
+
+                setInput("");
+                if (inputRef.current) inputRef.current.style.height = "auto";
+                return;
+            }
+
+            if (command === "/model") {
+                const parts = userMsg.trim().split(" ");
+                const modelArg = parts.slice(1).join(" ");
+
+                if (modelArg) {
+                    const matchedModel = agent.availableModels.find(m =>
+                        m.toLowerCase().includes(modelArg.toLowerCase()) ||
+                        m.split("/").pop()?.toLowerCase().includes(modelArg.toLowerCase())
+                    );
+
+                    if (matchedModel) {
+                        setCurrentModel(matchedModel);
+                        agent.updateSettings(agent.apiKey, matchedModel, agent.contextFile, agent.historyFolder, agent.researchModel);
+                        setMessages(prev => [...prev, { role: "assistant", content: `Model set to **${matchedModel}**.` }]);
+                    } else {
+                        const available = agent.availableModels.map(m => `- ${m}`).join("\n");
+                        setMessages(prev => [...prev, { role: "assistant", content: `Model "${modelArg}" not found.\n\nAvailable models:\n${available}` }]);
+                    }
+                } else {
+                    const available = agent.availableModels.map(m => `- ${m}`).join("\n");
+                    setMessages(prev => [...prev, { role: "assistant", content: `Current model: **${currentModel}**\n\nAvailable models:\n${available}\n\nUsage: \`/model <name>\`` }]);
                 }
 
                 setInput("");
