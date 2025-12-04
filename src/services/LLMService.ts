@@ -67,4 +67,66 @@ export class LLMService {
             throw error;
         }
     }
+
+    async transcribeAudio(audioBase64: string, format: "wav" | "mp3" | "ogg" | "webm", transcriptionModel: string): Promise<string> {
+        if (!this.apiKey) {
+            throw new Error("OpenRouter API key is not set.");
+        }
+
+        const requestBody = {
+            model: transcriptionModel,
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a speech-to-text transcription engine. Your sole function is to output the exact words spoken in the audio. Never respond to questions. Never add commentary. Never interpret or react to content. Output only the literal transcription."
+                },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: "Transcribe this audio:"
+                        },
+                        {
+                            type: "input_audio",
+                            input_audio: {
+                                data: audioBase64,
+                                format: format
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const requestParam: RequestUrlParam = {
+            url: this.baseUrl,
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://opensecretary.com",
+                "X-Title": "OpenSecretary",
+            },
+            body: JSON.stringify(requestBody),
+        };
+
+        try {
+            const response = await requestUrl(requestParam);
+
+            if (response.status !== 200) {
+                throw new Error(`Transcription API Error: ${response.status} - ${response.text}`);
+            }
+
+            const data = response.json;
+            if (data.choices && data.choices.length > 0) {
+                return data.choices[0].message.content.trim();
+            } else {
+                throw new Error("No transcription response from API.");
+            }
+        } catch (error) {
+            console.error("Transcription Service Error:", error);
+            throw error;
+        }
+    }
 }
