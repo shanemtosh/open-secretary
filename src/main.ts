@@ -5,11 +5,21 @@
  * Licensed under AGPLv3 - see LICENSE file for details.
  */
 
-import { App, Platform, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { addIcon, App, Platform, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { Agent } from "./agent/Agent";
 import { ReadFileTool, WriteFileTool, DeleteFileTool, MoveFileTool, ListDirTool, CreateDirTool, EditFileTool, AppendFileTool } from "./tools/FileTools";
 import { SearchFilesTool } from "./tools/SearchTool";
 import { ChatView, VIEW_TYPE_CHAT } from "./ui/ChatView";
+
+export const ICON_OPEN_SECRETARY = "open-secretary";
+
+const OPEN_SECRETARY_ICON_SVG = `<g fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="butt">
+  <line x1="100" y1="10" x2="0" y2="10"/>
+  <line x1="0" y1="30" x2="50" y2="30"/>
+  <line x1="0" y1="50" x2="100" y2="50"/>
+  <line x1="100" y1="70" x2="50" y2="70"/>
+  <line x1="0" y1="90" x2="100" y2="90"/>
+</g>`;
 
 type ViewPosition = "right" | "left" | "main";
 
@@ -40,6 +50,9 @@ export default class AgentPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
 
+        // Register custom icon
+        addIcon(ICON_OPEN_SECRETARY, OPEN_SECRETARY_ICON_SVG);
+
         this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
 
@@ -59,7 +72,7 @@ export default class AgentPlugin extends Plugin {
             (leaf) => new ChatView(leaf, this.agent)
         );
 
-        this.addRibbonIcon("bot", "Open Agent Chat", () => {
+        this.addRibbonIcon(ICON_OPEN_SECRETARY, "Open Agent Chat", () => {
             this.activateView();
         });
 

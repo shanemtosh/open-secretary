@@ -21,6 +21,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 import { createRoot, Root } from "react-dom/client";
 import { Agent, AgentMode } from "../agent/Agent";
+import { ICON_OPEN_SECRETARY } from "../main";
 import {
     IconSend,
     IconPaperclip,
@@ -56,25 +57,26 @@ const SessionList = ({ sessions, onSelect }: { sessions: string[], onSelect: (pa
 };
 
 // Helper component for Diff View
-const DiffViewer = ({ args, toolName }: { args: any, toolName: string }) => {
+const DiffViewer = ({ args, toolName }: { args: Record<string, unknown>, toolName: string }) => {
     if (toolName === "replace_file_content") {
         return (
             <div className="diff-container">
                 <div className="diff-chunk">
-                    <div className="diff-header">{args.TargetFile} (Lines {args.StartLine}-{args.EndLine})</div>
+                    <div className="diff-header">{args.TargetFile as string} (Lines {args.StartLine as number}-{args.EndLine as number})</div>
                     <div className="diff-content">
-                        <div className="diff-remove">{args.TargetContent}</div>
-                        <div className="diff-add">{args.ReplacementContent}</div>
+                        <div className="diff-remove">{args.TargetContent as string}</div>
+                        <div className="diff-add">{args.ReplacementContent as string}</div>
                     </div>
                 </div>
             </div>
         );
     }
     if (toolName === "multi_replace_file_content") {
+        const chunks = args.ReplacementChunks as Array<{ StartLine: number, EndLine: number, TargetContent: string, ReplacementContent: string }>;
         return (
             <div className="diff-container">
-                <div className="diff-header">{args.TargetFile}</div>
-                {args.ReplacementChunks.map((chunk: any, i: number) => (
+                <div className="diff-header">{args.TargetFile as string}</div>
+                {chunks.map((chunk, i: number) => (
                     <div key={i} className="diff-chunk">
                         <div className="diff-header">Chunk {i + 1} (Lines {chunk.StartLine}-{chunk.EndLine})</div>
                         <div className="diff-content">
@@ -94,6 +96,198 @@ const DiffViewer = ({ args, toolName }: { args: any, toolName: string }) => {
     );
 };
 
+// Helper function for compact tool output (single-line descriptive)
+const getCompactToolDescription = (toolName: string, args: Record<string, unknown>): string => {
+    const fileName = (path: string) => path.split("/").pop() || path;
+
+    switch (toolName) {
+        case "read_file":
+            return `Reading ${fileName(args.path as string)}`;
+        case "write_file":
+            return `Writing ${fileName(args.path as string)}`;
+        case "edit_file":
+            return `Editing ${fileName(args.path as string)}`;
+        case "append_file":
+            return `Appending to ${fileName(args.path as string)}`;
+        case "delete_file":
+            return `Deleting ${fileName(args.path as string)}`;
+        case "move_file":
+            return `Moving ${fileName(args.oldPath as string)} to ${fileName(args.newPath as string)}`;
+        case "list_dir":
+            return `Listing ${args.path as string || "/"}`;
+        case "create_dir":
+            return `Creating folder ${args.path as string}`;
+        case "search_files":
+            return `Searching for "${args.query as string}"`;
+        case "update_plan":
+            return "Updating plan";
+        case "delegate_task":
+            return `Delegating to ${args.subAgentName as string}`;
+        default:
+            return `Using ${toolName}`;
+    }
+};
+
+// Helper component for verbose tool output
+const VerboseToolOutput = ({ toolName, args }: { toolName: string, args: Record<string, unknown> }) => {
+    const truncate = (str: string, maxLen: number) => {
+        if (str.length <= maxLen) return str;
+        return str.substring(0, maxLen) + "...";
+    };
+
+    switch (toolName) {
+        case "read_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Reading file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "write_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Writing file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                    <div className="tool-output-preview">
+                        <div className="diff-add">{truncate(args.content as string, 500)}</div>
+                    </div>
+                </div>
+            );
+
+        case "edit_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Editing file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                    <div className="diff-container">
+                        <div className="diff-chunk">
+                            <div className="diff-content">
+                                <div className="diff-remove">{args.target as string}</div>
+                                <div className="diff-add">{args.replacement as string}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+        case "append_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Appending to file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                    <div className="tool-output-preview">
+                        <div className="diff-add">{truncate(args.content as string, 500)}</div>
+                    </div>
+                </div>
+            );
+
+        case "delete_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Deleting file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value tool-output-destructive">{args.path as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "move_file":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Moving file</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">From:</span>
+                        <span className="tool-output-value">{args.oldPath as string}</span>
+                    </div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">To:</span>
+                        <span className="tool-output-value">{args.newPath as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "list_dir":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Listing directory</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "create_dir":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Creating directory</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Path:</span>
+                        <span className="tool-output-value">{args.path as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "search_files":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Searching files</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Query:</span>
+                        <span className="tool-output-value">{args.query as string}</span>
+                    </div>
+                </div>
+            );
+
+        case "update_plan":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Updating plan</div>
+                    <div className="tool-output-preview">
+                        {truncate(args.content as string, 300)}
+                    </div>
+                </div>
+            );
+
+        case "delegate_task":
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Delegating task</div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Agent:</span>
+                        <span className="tool-output-value">{args.subAgentName as string}</span>
+                    </div>
+                    <div className="tool-output-row">
+                        <span className="tool-output-label">Task:</span>
+                        <span className="tool-output-value">{truncate(args.task as string, 200)}</span>
+                    </div>
+                </div>
+            );
+
+        default:
+            return (
+                <div className="tool-output-verbose">
+                    <div className="tool-output-header">Using {toolName}</div>
+                    <div className="tool-output-json">{JSON.stringify(args, null, 2)}</div>
+                </div>
+            );
+    }
+};
+
 export class ChatView extends ItemView {
     agent: Agent;
     private root: Root | null = null;
@@ -109,6 +303,10 @@ export class ChatView extends ItemView {
 
     getDisplayText() {
         return "Agent Chat";
+    }
+
+    getIcon() {
+        return ICON_OPEN_SECRETARY;
     }
 
     async onOpen() {
@@ -938,18 +1136,9 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                         <div className="message-content">
                             {msg.type === "tool" ? (
                                 verboseToolOutput ? (
-                                    <div className="tool-output-verbose">
-                                        <div className="tool-output-header">Using {msg.toolName}</div>
-                                        {msg.toolName === "run_command" ? (
-                                            <div>
-                                                <div style={{ color: "var(--text-accent)" }}>$ {msg.toolArgs.CommandLine}</div>
-                                            </div>
-                                        ) : (
-                                            <pre style={{ margin: 0 }}>{JSON.stringify(msg.toolArgs, null, 2)}</pre>
-                                        )}
-                                    </div>
+                                    <VerboseToolOutput toolName={msg.toolName || ""} args={msg.toolArgs || {}} />
                                 ) : (
-                                    `Using ${msg.toolName}...`
+                                    getCompactToolDescription(msg.toolName || "", msg.toolArgs || {})
                                 )
                             ) : msg.type === "history_list" ? (
                                 <SessionList sessions={msg.sessions || []} onSelect={handleLoadSession} />
