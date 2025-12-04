@@ -422,24 +422,71 @@
 
 /* Verbose Tool Output */
 .tool-output-verbose {
-	white-space: pre-wrap;
-	word-break: break-word;
-	overflow-wrap: break-word;
 	font-family: var(--font-monospace);
 	font-size: 0.8rem;
 	background: var(--background-secondary);
-	padding: 0.5rem;
+	padding: 0.75rem;
 	border-radius: var(--radius);
 	max-height: 400px;
 	overflow-y: auto;
 	overflow-x: hidden;
-	/* Prevent horizontal scroll */
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
 }
 
 .tool-output-header {
-	font-weight: bold;
-	margin-bottom: 0.25rem;
+	font-weight: 600;
 	color: var(--text-accent);
+	font-size: 0.85rem;
+}
+
+.tool-output-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: baseline;
+}
+
+.tool-output-label {
+	color: var(--text-muted);
+	flex-shrink: 0;
+	min-width: 3rem;
+}
+
+.tool-output-value {
+	color: var(--text-normal);
+	word-break: break-all;
+	overflow-wrap: break-word;
+}
+
+.tool-output-destructive {
+	color: hsl(var(--destructive));
+}
+
+.tool-output-preview {
+	margin-top: 0.25rem;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.tool-output-command {
+	color: var(--text-accent);
+	padding: 0.25rem 0.5rem;
+	background: var(--background-primary);
+	border-radius: 0.25rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.tool-output-json {
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: break-word;
+	background: var(--background-primary);
+	padding: 0.5rem;
+	border-radius: 0.25rem;
+	max-height: 250px;
+	overflow-y: auto;
 }
 
 /* Hotkey Hints */
