@@ -34,20 +34,23 @@ export class Agent {
     public apiKey: string;
     public modelName: string;
     public researchModel: string;
+    public transcriptionModel: string;
+    public voiceAutoSend: boolean;
 
-    // Callbacks
-    public onToolStart: (toolName: string, args: any) => void = () => { };
-    public onToolFinish: (toolName: string, result: any) => void = () => { };
+    public onToolStart: (toolName: string, args: Record<string, unknown>) => void = () => { };
+    public onToolFinish: (toolName: string, result: unknown) => void = () => { };
     public onMessage: (content: string) => void = () => { };
     public onPlanUpdate: (plan: string) => void = () => { };
-    public onApprovalRequest: (toolName: string, args: any) => Promise<boolean> = async () => true;
+    public onApprovalRequest: (toolName: string, args: Record<string, unknown>) => Promise<boolean> = async () => true;
     public onModeChange: (mode: AgentMode) => void = () => { };
 
-    constructor(app: App, apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string) {
+    constructor(app: App, apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean) {
         this.app = app;
         this.apiKey = apiKey;
         this.modelName = model;
         this.researchModel = researchModel;
+        this.transcriptionModel = transcriptionModel;
+        this.voiceAutoSend = voiceAutoSend;
         this.llm = new LLMService(apiKey, model);
         this.tools = new Map();
         this.subAgents = new Map();
@@ -66,10 +69,12 @@ export class Agent {
         this.registerSubAgent("WriterAgent", new WriterAgent(app, this.llm));
     }
 
-    updateSettings(apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string) {
+    updateSettings(apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean) {
         this.apiKey = apiKey;
         this.modelName = model;
         this.researchModel = researchModel;
+        this.transcriptionModel = transcriptionModel;
+        this.voiceAutoSend = voiceAutoSend;
         this.llm.updateSettings(apiKey, model);
         this.contextFile = contextFile;
         this.historyFolder = historyFolder;
@@ -120,7 +125,6 @@ export class Agent {
                 await this.app.vault.adapter.mkdir(this.historyFolder);
             }
             await this.app.vault.adapter.write(path, JSON.stringify(this.history, null, 2));
-            // new Notice(`Session saved to ${path}`); // Silenced auto-save
         } catch (error) {
             console.error("Failed to save session:", error);
             new Notice("Failed to save session.");
@@ -395,12 +399,13 @@ IMPORTANT RULES:
             }
 
             return response;
-        } catch (error: any) {
-            if (error.message === "Aborted") {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage === "Aborted") {
                 return "Request cancelled.";
             }
-            new Notice("Error communicating with Agent: " + error.message);
-            return "Error: " + error.message;
+            new Notice("Error communicating with Agent: " + errorMessage);
+            return "Error: " + errorMessage;
         } finally {
             this.abortController = null;
         }
@@ -412,6 +417,10 @@ IMPORTANT RULES:
             .filter(file => file.path.toLowerCase().includes(query.toLowerCase()))
             .map(file => file.path)
             .slice(0, 10);
+    }
+
+    async transcribeAudio(audioBase64: string, format: "wav" | "mp3" | "ogg" | "webm"): Promise<string> {
+        return await this.llm.transcribeAudio(audioBase64, format, this.transcriptionModel);
     }
 
     async compactMemory() {
@@ -443,7 +452,8 @@ Output ONLY the summary. Do not include any other text.`;
 
             return summary;
         } catch (error) {
-            new Notice("Failed to compact memory: " + error.message);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice("Failed to compact memory: " + errorMessage);
             throw error;
         }
     }

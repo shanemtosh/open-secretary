@@ -11,32 +11,24 @@ import {
     WorkspaceLeaf,
     MarkdownRenderer,
     Notice,
-    TFile,
-    setIcon,
-    Menu,
     Component,
     Platform
 } from "obsidian";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { createRoot, Root } from "react-dom/client";
+import { Root } from "react-dom/client";
 import { Agent, AgentMode } from "../agent/Agent";
 import { ICON_OPEN_SECRETARY } from "../main";
 import {
-    IconSend,
-    IconPaperclip,
-    IconCode,
     IconHistory,
     IconDeviceLaptop,
-    IconBolt,
     IconCircle,
     IconCircleDashed,
     IconProgress,
-    IconPlus,
-    IconRobot,
     IconChevronDown,
     IconArrowUp,
-    IconAdjustments
+    IconMicrophone,
+    IconPlayerStop
 } from "@tabler/icons-react";
 
 export const VIEW_TYPE_CHAT = "agent-chat-view";
@@ -323,7 +315,7 @@ export class ChatView extends ItemView {
     }
 }
 
-const MarkdownMessage = ({ content, app, component }: { content: string, app: any, component: Component }) => {
+const MarkdownMessage = ({ content, app, component }: { content: string, app: App, component: Component }) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
@@ -338,18 +330,24 @@ const MarkdownMessage = ({ content, app, component }: { content: string, app: an
 
 const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     // Extended message type to store tool details and custom UI types
-    const [messages, setMessages] = React.useState<{ role: string, content: string, type?: "text" | "tool" | "history_list", toolName?: string, toolArgs?: any, sessions?: string[] }[]>([]);
+    const [messages, setMessages] = React.useState<{ role: string, content: string, type?: "text" | "tool" | "history_list", toolName?: string, toolArgs?: Record<string, unknown>, sessions?: string[] }[]>([]);
     const [input, setInput] = React.useState("");
     const [loading, setLoading] = React.useState(false);
     const [plan, setPlan] = React.useState("");
     const [showPlan, setShowPlan] = React.useState(false);
     const [mode, setMode] = React.useState<AgentMode>("high");
-    const [approvalRequest, setApprovalRequest] = React.useState<{ tool: string, args: any, resolve: (value: boolean) => void } | null>(null);
+    const [approvalRequest, setApprovalRequest] = React.useState<{ tool: string, args: Record<string, unknown>, resolve: (value: boolean) => void } | null>(null);
 
     // UI State
     const [activeDropdown, setActiveDropdown] = React.useState<string | null>(null);
     const [currentModel, setCurrentModel] = React.useState(agent.modelName);
     const [verboseToolOutput, setVerboseToolOutput] = React.useState(false); // Toggle state
+
+    // Voice Recording State
+    const [isRecording, setIsRecording] = React.useState(false);
+    const [isTranscribing, setIsTranscribing] = React.useState(false);
+    const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+    const audioChunksRef = React.useRef<Blob[]>([]);
 
     const messagesEndRef = React.useRef<HTMLDivElement>(null);
     const messagesContainerRef = React.useRef<HTMLDivElement>(null);
@@ -359,7 +357,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
     // Suggestions state
     const [showSuggestions, setShowSuggestions] = React.useState(false);
-    const [suggestions, setSuggestions] = React.useState<any[]>([]);
+    const [suggestions, setSuggestions] = React.useState<(string | { display: string, description: string, insert: string })[]>([]);
     const [suggestionIndex, setSuggestionIndex] = React.useState(0);
     const [suggestionType, setSuggestionType] = React.useState<"file" | "command" | "subcommand" | "inline">("file");
 
@@ -678,7 +676,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         }
     };
 
-    const insertSuggestion = (suggestion: any) => {
+    const insertSuggestion = (suggestion: string | { display: string, description: string, insert: string }) => {
         const text = typeof suggestion === 'string' ? suggestion : suggestion.insert;
         const cursor = inputRef.current?.selectionStart || 0;
 
@@ -814,7 +812,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
                     if (matchedModel) {
                         setCurrentModel(matchedModel);
-                        agent.updateSettings(agent.apiKey, matchedModel, agent.contextFile, agent.historyFolder, agent.researchModel);
+                        agent.updateSettings(agent.apiKey, matchedModel, agent.contextFile, agent.historyFolder, agent.researchModel, agent.transcriptionModel, agent.voiceAutoSend);
                         setMessages(prev => [...prev, { role: "assistant", content: `Model set to **${matchedModel}**.` }]);
                     } else {
                         const available = agent.availableModels.map(m => `- ${m}`).join("\n");
@@ -1098,13 +1096,160 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         }
     };
 
-    const handleSuggestionClick = (suggestion: string) => {
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4"
+            });
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop());
+
+                const mimeType = mediaRecorder.mimeType;
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+
+                setIsTranscribing(true);
+                try {
+                    // Convert to WAV for better compatibility with Gemini
+                    const wavBlob = await convertToWav(audioBlob);
+                    const base64 = await blobToBase64(wavBlob);
+                    const transcript = await agent.transcribeAudio(base64, "wav");
+
+                    if (agent.voiceAutoSend) {
+                        const fullMessage = input.trim() ? input + " " + transcript : transcript;
+                        setInput("");
+                        if (inputRef.current) inputRef.current.style.height = "auto";
+                        setIsTranscribing(false);
+                        setLoading(true);
+                        setMessages(prev => [...prev, { role: "user", content: fullMessage }]);
+                        try {
+                            const response = await agent.chat(fullMessage);
+                            setMessages(prev => [...prev, { role: "assistant", content: response }]);
+                        } catch (err) {
+                            const errMsg = err instanceof Error ? err.message : String(err);
+                            setMessages(prev => [...prev, { role: "assistant", content: "Error: " + errMsg }]);
+                        } finally {
+                            setLoading(false);
+                        }
+                    } else {
+                        setInput(prev => prev + (prev ? " " : "") + transcript);
+                        if (inputRef.current) {
+                            inputRef.current.style.height = "auto";
+                            inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+                            inputRef.current.focus();
+                        }
+                    }
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    new Notice("Transcription failed: " + errorMessage);
+                } finally {
+                    setIsTranscribing(false);
+                }
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (error) {
+            if (error instanceof Error && error.name === "NotAllowedError") {
+                const platform = Platform.isMobile
+                    ? "Settings > Obsidian > Microphone"
+                    : "System Settings > Privacy & Security > Microphone";
+                new Notice(`Microphone access denied. Enable it in ${platform}`);
+            } else {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                new Notice("Could not access microphone: " + errorMessage);
+            }
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result as string;
+                const base64Data = base64String.split(",")[1];
+                resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    const convertToWav = async (audioBlob: Blob): Promise<Blob> => {
+        const audioContext = new AudioContext();
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Convert to WAV
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const length = audioBuffer.length * numChannels * 2;
+        const buffer = new ArrayBuffer(44 + length);
+        const view = new DataView(buffer);
+        
+        // WAV header
+        const writeString = (offset: number, str: string) => {
+            for (let i = 0; i < str.length; i++) {
+                view.setUint8(offset + i, str.charCodeAt(i));
+            }
+        };
+        
+        writeString(0, "RIFF");
+        view.setUint32(4, 36 + length, true);
+        writeString(8, "WAVE");
+        writeString(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * 2, true);
+        view.setUint16(32, numChannels * 2, true);
+        view.setUint16(34, 16, true); // bits per sample
+        writeString(36, "data");
+        view.setUint32(40, length, true);
+        
+        // Write audio data
+        const channels: Float32Array[] = [];
+        for (let i = 0; i < numChannels; i++) {
+            channels.push(audioBuffer.getChannelData(i));
+        }
+        
+        let offset = 44;
+        for (let i = 0; i < audioBuffer.length; i++) {
+            for (let ch = 0; ch < numChannels; ch++) {
+                const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+        }
+        
+        await audioContext.close();
+        return new Blob([buffer], { type: "audio/wav" });
+    };
+
+    const handleSuggestionClick = (suggestion: string | { display: string, description: string, insert: string }) => {
         insertSuggestion(suggestion);
     };
 
     const handleModelChange = async (newModel: string) => {
         setCurrentModel(newModel);
-        agent.updateSettings(agent.apiKey, newModel, agent.contextFile, agent.historyFolder, agent.researchModel);
+        agent.updateSettings(agent.apiKey, newModel, agent.contextFile, agent.historyFolder, agent.researchModel, agent.transcriptionModel, agent.voiceAutoSend);
         setActiveDropdown(null);
     };
 
@@ -1244,16 +1389,40 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 value={input}
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Message..."
+                                placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "Message..."}
                                 rows={1}
                             />
                             <button
-                                className="agent-btn-send"
-                                onClick={loading ? handleCancel : handleSubmit}
-                                disabled={!input.trim() && !loading}
-                                style={{ backgroundColor: loading ? "var(--destructive)" : "var(--claude-send-btn)" }}
+                                className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !loading ? "mic-mode" : ""}`}
+                                onClick={() => {
+                                    if (loading) {
+                                        handleCancel();
+                                    } else if (isRecording) {
+                                        stopRecording();
+                                    } else if (!input.trim()) {
+                                        startRecording();
+                                    } else {
+                                        handleSubmit();
+                                    }
+                                }}
+                                disabled={isTranscribing}
+                                style={{
+                                    backgroundColor: loading ? "var(--destructive)" :
+                                        isRecording ? "var(--destructive)" :
+                                        "var(--claude-send-btn)"
+                                }}
                             >
-                                {loading ? <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} /> : <IconArrowUp size={18} />}
+                                {isTranscribing ? (
+                                    <div className="agent-mic-spinner" />
+                                ) : loading ? (
+                                    <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
+                                ) : isRecording ? (
+                                    <IconPlayerStop size={18} />
+                                ) : !input.trim() ? (
+                                    <IconMicrophone size={18} />
+                                ) : (
+                                    <IconArrowUp size={18} />
+                                )}
                             </button>
                         </div>
                     ) : (
@@ -1265,7 +1434,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                     value={input}
                                     onChange={handleInputChange}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="How can I help you today?"
+                                    placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "How can I help you today?"}
                                     rows={1}
                                 />
                             </div>
@@ -1284,12 +1453,38 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 </div>
                                 <div className="agent-ai03-right-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                     <button
-                                        className="agent-btn-send"
-                                        onClick={loading ? handleCancel : handleSubmit}
-                                        disabled={!input.trim() && !loading}
-                                        style={{ backgroundColor: loading ? "var(--destructive)" : "var(--claude-send-btn)" }}
+                                        className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !loading ? "mic-mode" : ""}`}
+                                        onClick={() => {
+                                            if (loading) {
+                                                handleCancel();
+                                            } else if (isRecording) {
+                                                stopRecording();
+                                            } else if (!input.trim()) {
+                                                startRecording();
+                                            } else {
+                                                handleSubmit();
+                                            }
+                                        }}
+                                        disabled={isTranscribing}
+                                        title={isRecording ? "Stop recording" : !input.trim() ? "Start voice input" : "Send message"}
+                                        style={{
+                                            backgroundColor: loading ? "var(--destructive)" :
+                                                isRecording ? "var(--destructive)" :
+                                                !input.trim() ? "var(--claude-popover-bg)" :
+                                                "var(--claude-send-btn)"
+                                        }}
                                     >
-                                        {loading ? <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} /> : <IconArrowUp size={18} />}
+                                        {isTranscribing ? (
+                                            <div className="agent-mic-spinner" />
+                                        ) : loading ? (
+                                            <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
+                                        ) : isRecording ? (
+                                            <IconPlayerStop size={18} />
+                                        ) : !input.trim() ? (
+                                            <IconMicrophone size={18} />
+                                        ) : (
+                                            <IconArrowUp size={18} />
+                                        )}
                                     </button>
                                 </div>
                             </div>

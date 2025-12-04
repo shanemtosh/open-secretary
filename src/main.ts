@@ -30,16 +30,20 @@ interface AgentPluginSettings {
     contextFile: string;
     historyFolder: string;
     researchModel: string;
+    transcriptionModel: string;
+    voiceAutoSend: boolean;
     viewPosition: ViewPosition;
 }
 
 const DEFAULT_SETTINGS: AgentPluginSettings = {
     openRouterApiKey: "",
-    model: "x-ai/grok-4-fast",
-    availableModels: "x-ai/grok-4-fast,anthropic/claude-sonnet-4.5,anthropic/claude-haiku-4.5",
+    model: "x-ai/grok-4.1-fast",
+    availableModels: "x-ai/grok-4.1-fast,x-ai/grok-4-fast,anthropic/claude-sonnet-4.5,anthropic/claude-haiku-4.5",
     contextFile: "AGENTS.md",
     historyFolder: ".obsidian/plugins/open-secretary/history",
     researchModel: "perplexity/sonar",
+    transcriptionModel: "google/gemini-2.5-flash-lite-preview-09-2025",
+    voiceAutoSend: false,
     viewPosition: "right"
 }
 
@@ -53,7 +57,7 @@ export default class AgentPlugin extends Plugin {
         // Register custom icon
         addIcon(ICON_OPEN_SECRETARY, OPEN_SECRETARY_ICON_SVG);
 
-        this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel);
+        this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
 
         // Register Tools
@@ -116,7 +120,7 @@ export default class AgentPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
-        this.agent.updateSettings(this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel);
+        this.agent.updateSettings(this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
     }
 }
@@ -198,6 +202,27 @@ class AgentSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.researchModel)
                 .onChange(async (value) => {
                     this.plugin.settings.researchModel = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Transcription Model")
+            .setDesc("Model used for voice-to-text transcription (must support audio input)")
+            .addText(text => text
+                .setPlaceholder("google/gemini-2.5-flash-lite-preview-09-2025")
+                .setValue(this.plugin.settings.transcriptionModel)
+                .onChange(async (value) => {
+                    this.plugin.settings.transcriptionModel = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Voice Auto-Send")
+            .setDesc("Automatically send voice messages after transcription (skip review)")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.voiceAutoSend)
+                .onChange(async (value) => {
+                    this.plugin.settings.voiceAutoSend = value;
                     await this.plugin.saveSettings();
                 }));
 
