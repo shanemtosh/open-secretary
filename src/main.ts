@@ -22,6 +22,7 @@ const OPEN_SECRETARY_ICON_SVG = `<g fill="none" stroke="currentColor" stroke-wid
 </g>`;
 
 type ViewPosition = "right" | "left" | "main";
+export type OutputStyle = "default" | "concise" | "explanatory";
 
 interface AgentPluginSettings {
     openRouterApiKey: string;
@@ -33,18 +34,20 @@ interface AgentPluginSettings {
     transcriptionModel: string;
     voiceAutoSend: boolean;
     viewPosition: ViewPosition;
+    outputStyle: OutputStyle;
 }
 
 const DEFAULT_SETTINGS: AgentPluginSettings = {
     openRouterApiKey: "",
-    model: "x-ai/grok-4.1-fast",
-    availableModels: "x-ai/grok-4.1-fast,x-ai/grok-4-fast,anthropic/claude-sonnet-4.5,anthropic/claude-haiku-4.5",
+    model: "google/gemini-2.5-flash-lite",
+    availableModels: "google/gemini-2.5-flash-lite,google/gemini-3-flash-preview,x-ai/grok-4.1-fast,x-ai/grok-4-fast,anthropic/claude-sonnet-4.5,anthropic/claude-haiku-4.5",
     contextFile: "AGENTS.md",
     historyFolder: ".obsidian/plugins/open-secretary/history",
     researchModel: "perplexity/sonar",
     transcriptionModel: "google/gemini-2.5-flash-lite-preview-09-2025",
     voiceAutoSend: false,
-    viewPosition: "right"
+    viewPosition: "right",
+    outputStyle: "default"
 }
 
 export default class AgentPlugin extends Plugin {
@@ -57,7 +60,7 @@ export default class AgentPlugin extends Plugin {
         // Register custom icon
         addIcon(ICON_OPEN_SECRETARY, OPEN_SECRETARY_ICON_SVG);
 
-        this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend);
+        this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend, this.settings.outputStyle);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
 
         // Register Tools
@@ -120,7 +123,7 @@ export default class AgentPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
-        this.agent.updateSettings(this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend);
+        this.agent.updateSettings(this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend, this.settings.outputStyle);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
     }
 }
@@ -236,6 +239,19 @@ class AgentSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.viewPosition)
                 .onChange(async (value: ViewPosition) => {
                     this.plugin.settings.viewPosition = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Output Style")
+            .setDesc("Control how verbose the agent's responses are")
+            .addDropdown(dropdown => dropdown
+                .addOption("default", "Default")
+                .addOption("concise", "Concise (shorter responses)")
+                .addOption("explanatory", "Explanatory (detailed responses)")
+                .setValue(this.plugin.settings.outputStyle)
+                .onChange(async (value: OutputStyle) => {
+                    this.plugin.settings.outputStyle = value;
                     await this.plugin.saveSettings();
                 }));
     }

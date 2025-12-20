@@ -5,7 +5,7 @@
  * Licensed under AGPLv3 - see LICENSE file for details.
  */
 
-import { App, Notice, TFile, moment } from "obsidian";
+import { App, Notice, TFile, moment, MarkdownView } from "obsidian";
 import { LLMService, LLMMessage } from "../services/LLMService";
 import { Tool } from "../tools/Tool";
 import { SubAgent } from "./SubAgent";
@@ -17,6 +17,7 @@ import { ResearchAgent } from "../subagents/ResearchAgent";
 import { WriterAgent } from "../subagents/WriterAgent";
 
 export type AgentMode = "low" | "high" | "plan";
+export type OutputStyle = "default" | "concise" | "explanatory";
 
 export class Agent {
     public app: App;
@@ -36,6 +37,7 @@ export class Agent {
     public researchModel: string;
     public transcriptionModel: string;
     public voiceAutoSend: boolean;
+    public outputStyle: OutputStyle;
 
     public onToolStart: (toolName: string, args: Record<string, unknown>) => void = () => { };
     public onToolFinish: (toolName: string, result: unknown) => void = () => { };
@@ -44,13 +46,14 @@ export class Agent {
     public onApprovalRequest: (toolName: string, args: Record<string, unknown>) => Promise<boolean> = async () => true;
     public onModeChange: (mode: AgentMode) => void = () => { };
 
-    constructor(app: App, apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean) {
+    constructor(app: App, apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean, outputStyle: OutputStyle = "default") {
         this.app = app;
         this.apiKey = apiKey;
         this.modelName = model;
         this.researchModel = researchModel;
         this.transcriptionModel = transcriptionModel;
         this.voiceAutoSend = voiceAutoSend;
+        this.outputStyle = outputStyle;
         this.llm = new LLMService(apiKey, model);
         this.tools = new Map();
         this.subAgents = new Map();
@@ -69,12 +72,13 @@ export class Agent {
         this.registerSubAgent("WriterAgent", new WriterAgent(app, this.llm));
     }
 
-    updateSettings(apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean) {
+    updateSettings(apiKey: string, model: string, contextFile: string, historyFolder: string, researchModel: string, transcriptionModel: string, voiceAutoSend: boolean, outputStyle: OutputStyle = "default") {
         this.apiKey = apiKey;
         this.modelName = model;
         this.researchModel = researchModel;
         this.transcriptionModel = transcriptionModel;
         this.voiceAutoSend = voiceAutoSend;
+        this.outputStyle = outputStyle;
         this.llm.updateSettings(apiKey, model);
         this.contextFile = contextFile;
         this.historyFolder = historyFolder;
@@ -265,15 +269,48 @@ MODE: HIGH AUTONOMY
 `;
         }
 
+        // Output style instructions
+        let outputStyleInstructions = "";
+        if (this.outputStyle === "concise") {
+            outputStyleInstructions = `
+OUTPUT STYLE: CONCISE
+- Keep responses brief and to the point.
+- Avoid unnecessary explanations or elaboration.
+- Use bullet points when listing multiple items.
+- Skip pleasantries and get straight to the answer.
+`;
+        } else if (this.outputStyle === "explanatory") {
+            outputStyleInstructions = `
+OUTPUT STYLE: EXPLANATORY
+- Provide detailed explanations for your actions and reasoning.
+- Include context and background information when relevant.
+- Explain the "why" behind decisions, not just the "what".
+- Help the user understand the process and learn from it.
+`;
+        }
+
+        // Get active file context
+        let activeFileContext = "";
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView?.file) {
+            const activeFilePath = activeView.file.path;
+            const selection = activeView.editor?.getSelection();
+            activeFileContext = `\nCURRENTLY OPEN FILE: ${activeFilePath}`;
+            if (selection && selection.trim().length > 0) {
+                activeFileContext += `\nSELECTED TEXT:\n\`\`\`\n${selection}\n\`\`\``;
+            }
+        }
+
         const systemPrompt = `You are an intelligent agent within Obsidian.
 You have access to the following tools:
 ${Array.from(this.tools.values()).map(t => `- ${t.name}: ${t.description}`).join("\n")}
 
 CURRENT DATE/TIME: ${moment().format("YYYY-MM-DD HH:mm:ss")}
 
-${contextContent ? `CONTEXT FROM VAULT (${this.contextFile}):\n${contextContent}\n` : ""}
+${contextContent ? `CONTEXT FROM VAULT (${this.contextFile}):\n${contextContent}\n` : ""}${activeFileContext}
 
 ${modeInstructions}
+${outputStyleInstructions}
 
 GOAL:
 You are an autonomous agent capable of performing complex tasks.

@@ -1145,7 +1145,10 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                         if (inputRef.current) {
                             inputRef.current.style.height = "auto";
                             inputRef.current.style.height = inputRef.current.scrollHeight + "px";
-                            inputRef.current.focus();
+                            // Only focus on desktop to avoid keyboard popup on mobile
+                            if (!Platform.isMobile) {
+                                inputRef.current.focus();
+                            }
                         }
                     }
                 } catch (error) {

@@ -4,6 +4,8 @@
 
 An autonomous AI agent system for [Obsidian](https://obsidian.md). Interact with your vault using an intelligent assistant that can read, write, search, and organize your notes.
 
+**Website:** [OpenSecretary.com](https://opensecretary.com)
+
 ## Features
 
 - **Autonomous Agent** - AI-powered assistant that understands context and executes tasks
@@ -83,4 +85,4 @@ npm run build
 
 ---
 
-**OpenSecretary** © 2025 — Released under [AGPLv3](LICENSE) for open source use. [Commercial licenses](mailto:shane@mto.sh) available.
+**[OpenSecretary](https://opensecretary.com)** - Copyright (c) 2025 McIntosh Media LLC. Released under [AGPLv3](LICENSE) for open source use. [Commercial licenses](mailto:shane@mto.sh) available.
