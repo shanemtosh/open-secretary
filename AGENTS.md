@@ -57,10 +57,10 @@ open-secretary/
 
 ```typescript
 /**
- * Copyright (c) 2025 McIntosh Media LLC <shane@mto.sh>
+ * Copyright (c) 2025 Mimir LLC
  *
  * This file is part of OpenSecretary.
- * Licensed under AGPLv3 - see LICENSE file for details.
+ * Licensed under MIT - see LICENSE file for details.
  */
 ```
 
@@ -173,6 +173,5 @@ Output goes to `main.js` in repo root.
 
 ## Licensing
 
-- Open source: AGPLv3
-- Copyright: McIntosh Media LLC
-- Commercial licensing available: shane@mto.sh
+- License: MIT
+- Copyright: Mimir LLC

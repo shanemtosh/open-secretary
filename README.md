@@ -1,6 +1,6 @@
 # OpenSecretary
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An autonomous AI agent system for [Obsidian](https://obsidian.md). Interact with your vault using an intelligent assistant that can read, write, search, and organize your notes.
 
@@ -43,36 +43,11 @@ No data is sent without user action. No telemetry or analytics are collected. Al
 
 ## License
 
-### Community Edition (Open Source)
-
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)** for free use, modification, and distribution by the community. See the [LICENSE](LICENSE) file for the complete license text.
-
-**This means:**
-- You can use, modify, and share it freely
-- Ideal for personal use, hobby projects, and open source projects
-- Any derivatives (including SaaS/network use) must also be AGPLv3 and share source code
-- You must provide access to the source code for any network-accessible deployment
-
-### Commercial License
-
-For proprietary use, closed-source derivatives, or commercial SaaS without AGPL obligations, we offer a **paid commercial license**. This provides flexibility for businesses while supporting project development.
-
-**Commercial licensing is ideal if you want to:**
-- Use OpenSecretary in a closed-source product
-- Offer OpenSecretary as part of a commercial SaaS without source disclosure
-- Avoid the copyleft requirements of AGPLv3
-
-**Pricing and Terms:** Custom plans based on your needs. Contact us at [shane@mto.sh](mailto:shane@mto.sh) for details and quotes.
+This project is licensed under the [MIT License](LICENSE).
 
 ## Contributing
 
-We welcome contributions! Before submitting a pull request:
-
-1. **Review and accept the [CLA](CLA.md)** - By submitting a PR, you agree to grant us rights for dual-licensing
-2. **Include copyright headers** - Ensure your code includes the standard copyright header
-3. **Follow our [CONTRIBUTING.md](CONTRIBUTING.md) guidelines**
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Development
 
@@ -99,4 +74,4 @@ npm run build
 
 ---
 
-**[OpenSecretary](https://opensecretary.com)** - Copyright (c) 2025 McIntosh Media LLC. Released under [AGPLv3](LICENSE) for open source use. [Commercial licenses](mailto:shane@mto.sh) available.
+**[OpenSecretary](https://opensecretary.com)** - Copyright (c) 2025 Mimir LLC. Released under [MIT License](LICENSE).

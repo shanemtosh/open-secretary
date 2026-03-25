@@ -1,8 +1,8 @@
 /**
- * Copyright (c) 2025 McIntosh Media LLC <shane@mto.sh>
+ * Copyright (c) 2025 Mimir LLC
  *
  * This file is part of OpenSecretary.
- * Licensed under AGPLv3 - see LICENSE file for details.
+ * Licensed under MIT - see LICENSE file for details.
  */
 
 import { App, TFile } from "obsidian";

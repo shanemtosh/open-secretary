@@ -10,7 +10,7 @@
     },
     "keywords": [],
     "author": "",
-    "license": "AGPL-3.0-or-later",
+    "license": "MIT",
     "devDependencies": {
         "@types/node": "^22.0.0",
         "@types/react": "^18.3.0",

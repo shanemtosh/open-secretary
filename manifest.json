@@ -4,7 +4,7 @@
 	"version": "1.3.0",
 	"minAppVersion": "1.7.2",
 	"description": "Interact with your vault using an autonomous AI agent.",
-	"author": "OpenSecretary",
+	"author": "Mimir LLC",
 	"authorUrl": "https://opensecretary.com",
 	"isDesktopOnly": false
 }
