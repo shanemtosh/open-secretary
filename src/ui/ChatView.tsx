@@ -15,8 +15,7 @@ import {
     Platform
 } from "obsidian";
 import * as React from "react";
-import * as ReactDOM from "react-dom";
-import { Root } from "react-dom/client";
+import { createRoot, Root } from "react-dom/client";
 import { Agent, AgentMode } from "../agent/Agent";
 import { ICON_OPEN_SECRETARY } from "../main";
 import {
@@ -28,7 +27,9 @@ import {
     IconChevronDown,
     IconArrowUp,
     IconMicrophone,
-    IconPlayerStop
+    IconPlayerStop,
+    IconCamera,
+    IconX
 } from "@tabler/icons-react";
 
 export const VIEW_TYPE_CHAT = "agent-chat-view";
@@ -304,14 +305,13 @@ export class ChatView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
-        ReactDOM.render(
-            <ChatComponent agent={this.agent} view={this} />,
-            container
-        );
+        this.root = createRoot(container);
+        this.root.render(<ChatComponent agent={this.agent} view={this} />);
     }
 
     async onClose() {
-        ReactDOM.unmountComponentAtNode(this.containerEl.children[1]);
+        this.root?.unmount();
+        this.root = null;
     }
 }
 
@@ -348,6 +348,11 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     const [isTranscribing, setIsTranscribing] = React.useState(false);
     const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
     const audioChunksRef = React.useRef<Blob[]>([]);
+
+    // Image Capture State
+    const [pendingImage, setPendingImage] = React.useState<{ base64: string; format: "jpeg" | "png" | "gif" | "webp"; previewUrl: string } | null>(null);
+    const [isImageTranscribing, setIsImageTranscribing] = React.useState(false);
+    const imageInputRef = React.useRef<HTMLInputElement>(null);
 
     const messagesEndRef = React.useRef<HTMLDivElement>(null);
     const messagesContainerRef = React.useRef<HTMLDivElement>(null);
@@ -434,7 +439,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         // Initial state
         setMode(agent.mode);
         setPlan(agent.plan);
-        setMessages(agent.history.map(msg => ({ role: msg.role, content: msg.content })));
+        setMessages(agent.history.map(msg => ({ role: msg.role, content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) })));
         setCurrentModel(agent.modelName);
     }, [agent]);
 
@@ -672,7 +677,11 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            handleSubmit();
+            if (pendingImage) {
+                handleImageSubmit();
+            } else {
+                handleSubmit();
+            }
         }
     };
 
@@ -882,7 +891,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
                 try {
                     await agent.loadSession(path);
-                    setMessages(agent.history.map(msg => ({ role: msg.role, content: msg.content })));
+                    setMessages(agent.history.map(msg => ({ role: msg.role, content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) })));
                     setMessages(prev => [...prev, { role: "assistant", content: `Session loaded from ${path}` }]);
                 } catch (error) {
                     setMessages(prev => [...prev, { role: "assistant", content: "Error loading session: " + error.message }]);
@@ -1246,13 +1255,85 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         return new Blob([buffer], { type: "audio/wav" });
     };
 
+    const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Determine format from MIME type
+        const mimeToFormat: Record<string, "jpeg" | "png" | "gif" | "webp"> = {
+            "image/jpeg": "jpeg",
+            "image/png": "png",
+            "image/gif": "gif",
+            "image/webp": "webp",
+        };
+        const format = mimeToFormat[file.type] || "jpeg";
+        const previewUrl = URL.createObjectURL(file);
+
+        try {
+            const base64 = await blobToBase64(file);
+            setPendingImage({ base64, format, previewUrl });
+            if (!Platform.isMobile && inputRef.current) {
+                inputRef.current.focus();
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice("Failed to load image: " + errorMessage);
+        }
+
+        // Reset file input so the same file can be re-selected
+        if (imageInputRef.current) imageInputRef.current.value = "";
+    };
+
+    const clearPendingImage = () => {
+        if (pendingImage) {
+            URL.revokeObjectURL(pendingImage.previewUrl);
+            setPendingImage(null);
+        }
+    };
+
+    const handleImageSubmit = async () => {
+        if (!pendingImage) return;
+
+        const userPrompt = input.trim() || undefined;
+        const displayMsg = userPrompt
+            ? `[Image attached] ${userPrompt}`
+            : "[Image attached] Transcribe to Markdown";
+
+        setLoading(true);
+        setIsImageTranscribing(true);
+        setMessages(prev => [...prev, { role: "user", content: displayMsg }]);
+        setInput("");
+        if (inputRef.current) inputRef.current.style.height = "auto";
+
+        const image = pendingImage;
+        clearPendingImage();
+
+        try {
+            const markdown = await agent.transcribeImage(image.base64, image.format, userPrompt);
+
+            // Send the transcribed markdown to the main model with instructions
+            const chatPrompt = userPrompt
+                ? `The user took a photo of their notes and said: "${userPrompt}"\n\nHere is the transcribed content from the image:\n\n${markdown}\n\nPlease create a new markdown file in the vault with this content. Use an appropriate filename based on the content.`
+                : `The user took a photo of their handwritten notes. Here is the transcribed content:\n\n${markdown}\n\nPlease create a new markdown file in the vault with this content. Use an appropriate filename based on the content.`;
+
+            const response = await agent.chat(chatPrompt);
+            setMessages(prev => [...prev, { role: "assistant", content: response }]);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            setMessages(prev => [...prev, { role: "assistant", content: "Image transcription failed: " + errorMessage }]);
+        } finally {
+            setLoading(false);
+            setIsImageTranscribing(false);
+        }
+    };
+
     const handleSuggestionClick = (suggestion: string | { display: string, description: string, insert: string }) => {
         insertSuggestion(suggestion);
     };
 
     const handleModelChange = async (newModel: string) => {
         setCurrentModel(newModel);
-        agent.updateSettings(agent.apiKey, newModel, agent.contextFile, agent.historyFolder, agent.researchModel, agent.transcriptionModel, agent.voiceAutoSend);
+        agent.updateSettings(agent.apiKey, newModel, agent.contextFile, agent.historyFolder, agent.researchModel, agent.transcriptionModel, agent.voiceAutoSend, agent.outputStyle);
         setActiveDropdown(null);
     };
 
@@ -1267,7 +1348,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         setLoading(true);
         try {
             await agent.loadSession(path);
-            setMessages(agent.history.map(msg => ({ role: msg.role, content: msg.content })));
+            setMessages(agent.history.map(msg => ({ role: msg.role, content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) })));
             setMessages(prev => [...prev, { role: "assistant", content: `Session loaded from ${path}` }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: "assistant", content: "Error loading session: " + error.message }]);
@@ -1385,6 +1466,27 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
                 <div className={`agent-ai03-container ${Platform.isMobile ? "mobile" : ""}`}>
                     {Platform.isMobile ? (
+                        <>
+                            {/* Hidden file input for image capture */}
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleImageSelect}
+                                style={{ display: "none" }}
+                            />
+
+                            {/* Image preview strip (above input row) */}
+                            {pendingImage && (
+                                <div className="agent-image-preview">
+                                    <img src={pendingImage.previewUrl} alt="Preview" />
+                                    <button className="agent-image-preview-clear" onClick={clearPendingImage}>
+                                        <IconX size={14} />
+                                    </button>
+                                </div>
+                            )}
+
                         <div className="agent-mobile-input-row">
                             <textarea
                                 ref={inputRef}
@@ -1392,44 +1494,83 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 value={input}
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyDown}
-                                placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "Message..."}
+                                placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isImageTranscribing ? "Transcribing image..." : pendingImage ? "Add instructions (optional)..." : "Message..."}
                                 rows={1}
                             />
-                            <button
-                                className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !loading ? "mic-mode" : ""}`}
-                                onClick={() => {
-                                    if (loading) {
-                                        handleCancel();
-                                    } else if (isRecording) {
-                                        stopRecording();
-                                    } else if (!input.trim()) {
-                                        startRecording();
-                                    } else {
-                                        handleSubmit();
-                                    }
-                                }}
-                                disabled={isTranscribing}
-                                style={{
-                                    backgroundColor: loading ? "var(--destructive)" :
-                                        isRecording ? "var(--destructive)" :
-                                        "var(--claude-send-btn)"
-                                }}
-                            >
-                                {isTranscribing ? (
-                                    <div className="agent-mic-spinner" />
-                                ) : loading ? (
-                                    <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
-                                ) : isRecording ? (
-                                    <IconPlayerStop size={18} />
-                                ) : !input.trim() ? (
-                                    <IconMicrophone size={18} />
-                                ) : (
-                                    <IconArrowUp size={18} />
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                {/* Camera button - only show when no image is pending and not busy */}
+                                {!pendingImage && !loading && !isRecording && (
+                                    <button
+                                        className="agent-btn-send mic-mode"
+                                        onClick={() => imageInputRef.current?.click()}
+                                        title="Capture image"
+                                        style={{ backgroundColor: "var(--claude-popover-bg)" }}
+                                    >
+                                        <IconCamera size={18} />
+                                    </button>
                                 )}
-                            </button>
+                                <button
+                                    className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""}`}
+                                    onClick={() => {
+                                        if (loading) {
+                                            handleCancel();
+                                        } else if (isRecording) {
+                                            stopRecording();
+                                        } else if (pendingImage) {
+                                            handleImageSubmit();
+                                        } else if (!input.trim()) {
+                                            startRecording();
+                                        } else {
+                                            handleSubmit();
+                                        }
+                                    }}
+                                    disabled={isTranscribing || isImageTranscribing}
+                                    style={{
+                                        backgroundColor: loading ? "var(--destructive)" :
+                                            isRecording ? "var(--destructive)" :
+                                            pendingImage ? "var(--claude-send-btn)" :
+                                            !input.trim() ? "var(--claude-popover-bg)" :
+                                            "var(--claude-send-btn)"
+                                    }}
+                                >
+                                    {isTranscribing || isImageTranscribing ? (
+                                        <div className="agent-mic-spinner" />
+                                    ) : loading ? (
+                                        <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
+                                    ) : isRecording ? (
+                                        <IconPlayerStop size={18} />
+                                    ) : pendingImage ? (
+                                        <IconArrowUp size={18} />
+                                    ) : !input.trim() ? (
+                                        <IconMicrophone size={18} />
+                                    ) : (
+                                        <IconArrowUp size={18} />
+                                    )}
+                                </button>
+                            </div>
                         </div>
+                        </>
                     ) : (
                         <>
+                            {/* Hidden file input for image capture (desktop) */}
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageSelect}
+                                style={{ display: "none" }}
+                            />
+
+                            {/* Image preview strip */}
+                            {pendingImage && (
+                                <div className="agent-image-preview">
+                                    <img src={pendingImage.previewUrl} alt="Preview" />
+                                    <button className="agent-image-preview-clear" onClick={clearPendingImage}>
+                                        <IconX size={14} />
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="agent-ai03-input-area">
                                 <textarea
                                     ref={inputRef}
@@ -1437,7 +1578,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                     value={input}
                                     onChange={handleInputChange}
                                     onKeyDown={handleKeyDown}
-                                    placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : "How can I help you today?"}
+                                    placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isImageTranscribing ? "Transcribing image..." : pendingImage ? "Add instructions (optional)..." : "How can I help you today?"}
                                     rows={1}
                                 />
                             </div>
@@ -1455,34 +1596,50 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                     </button>
                                 </div>
                                 <div className="agent-ai03-right-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    {/* Camera button */}
+                                    {!pendingImage && !loading && !isRecording && (
+                                        <button
+                                            className="agent-btn-send mic-mode"
+                                            onClick={() => imageInputRef.current?.click()}
+                                            title="Upload image of notes"
+                                            style={{ backgroundColor: "var(--claude-popover-bg)" }}
+                                        >
+                                            <IconCamera size={18} />
+                                        </button>
+                                    )}
                                     <button
-                                        className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !loading ? "mic-mode" : ""}`}
+                                        className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""}`}
                                         onClick={() => {
                                             if (loading) {
                                                 handleCancel();
                                             } else if (isRecording) {
                                                 stopRecording();
+                                            } else if (pendingImage) {
+                                                handleImageSubmit();
                                             } else if (!input.trim()) {
                                                 startRecording();
                                             } else {
                                                 handleSubmit();
                                             }
                                         }}
-                                        disabled={isTranscribing}
-                                        title={isRecording ? "Stop recording" : !input.trim() ? "Start voice input" : "Send message"}
+                                        disabled={isTranscribing || isImageTranscribing}
+                                        title={isRecording ? "Stop recording" : pendingImage ? "Send image" : !input.trim() ? "Start voice input" : "Send message"}
                                         style={{
                                             backgroundColor: loading ? "var(--destructive)" :
                                                 isRecording ? "var(--destructive)" :
+                                                pendingImage ? "var(--claude-send-btn)" :
                                                 !input.trim() ? "var(--claude-popover-bg)" :
                                                 "var(--claude-send-btn)"
                                         }}
                                     >
-                                        {isTranscribing ? (
+                                        {isTranscribing || isImageTranscribing ? (
                                             <div className="agent-mic-spinner" />
                                         ) : loading ? (
                                             <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
                                         ) : isRecording ? (
                                             <IconPlayerStop size={18} />
+                                        ) : pendingImage ? (
+                                            <IconArrowUp size={18} />
                                         ) : !input.trim() ? (
                                             <IconMicrophone size={18} />
                                         ) : (

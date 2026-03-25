@@ -460,6 +460,10 @@ IMPORTANT RULES:
         return await this.llm.transcribeAudio(audioBase64, format, this.transcriptionModel);
     }
 
+    async transcribeImage(imageBase64: string, format: "jpeg" | "png" | "gif" | "webp", userPrompt?: string): Promise<string> {
+        return await this.llm.transcribeImage(imageBase64, format, this.transcriptionModel, userPrompt);
+    }
+
     async compactMemory() {
         if (this.history.length === 0) return;
 

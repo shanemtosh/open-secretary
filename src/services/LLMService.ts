@@ -9,7 +9,16 @@ import { requestUrl, RequestUrlParam } from "obsidian";
 
 export interface LLMMessage {
     role: "system" | "user" | "assistant";
-    content: string;
+    content: string | Array<{ type: string; [key: string]: unknown }>;
+}
+
+/**
+ * Strip thinking tags from model responses.
+ * Chinese open-source reasoning models (DeepSeek R1, QwQ, Qwen3, MiniMax M2.5/M2.7)
+ * all use <think>...</think> for chain-of-thought output.
+ */
+function stripThinkingTags(text: string): string {
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 }
 
 export class LLMService {
@@ -58,7 +67,7 @@ export class LLMService {
 
             const data = response.json;
             if (data.choices && data.choices.length > 0) {
-                return data.choices[0].message.content;
+                return stripThinkingTags(data.choices[0].message.content);
             } else {
                 throw new Error("No response from OpenRouter.");
             }
@@ -120,12 +129,73 @@ export class LLMService {
 
             const data = response.json;
             if (data.choices && data.choices.length > 0) {
-                return data.choices[0].message.content.trim();
+                return stripThinkingTags(data.choices[0].message.content);
             } else {
                 throw new Error("No transcription response from API.");
             }
         } catch (error) {
             console.error("Transcription Service Error:", error);
+            throw error;
+        }
+    }
+
+    async transcribeImage(imageBase64: string, format: "jpeg" | "png" | "gif" | "webp", transcriptionModel: string, userPrompt?: string): Promise<string> {
+        if (!this.apiKey) {
+            throw new Error("OpenRouter API key is not set.");
+        }
+
+        const requestBody = {
+            model: transcriptionModel,
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a document transcription engine. Convert the image of handwritten or printed notes into clean, well-structured Markdown. Preserve the original structure, headings, lists, and emphasis as closely as possible. Output only the Markdown transcription — no commentary, explanations, or wrapper text."
+                },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: userPrompt || "Transcribe this image to Markdown:"
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: `data:image/${format};base64,${imageBase64}`
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const requestParam: RequestUrlParam = {
+            url: this.baseUrl,
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://opensecretary.com",
+                "X-Title": "OpenSecretary",
+            },
+            body: JSON.stringify(requestBody),
+        };
+
+        try {
+            const response = await requestUrl(requestParam);
+
+            if (response.status !== 200) {
+                throw new Error(`Image Transcription API Error: ${response.status} - ${response.text}`);
+            }
+
+            const data = response.json;
+            if (data.choices && data.choices.length > 0) {
+                return stripThinkingTags(data.choices[0].message.content);
+            } else {
+                throw new Error("No image transcription response from API.");
+            }
+        } catch (error) {
+            console.error("Image Transcription Service Error:", error);
             throw error;
         }
     }
