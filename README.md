@@ -30,7 +30,7 @@ No data is sent without user action. No telemetry or analytics are collected. Al
 
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/opensecretary/open-secretary/releases) page
+1. Download the latest release from the [Releases](https://github.com/MimirLLC/open-secretary/releases) page
 2. Extract to your Obsidian plugins folder: `.obsidian/plugins/open-secretary/`
 3. Enable the plugin in Obsidian Settings → Community Plugins
 4. Configure your OpenRouter API key in the plugin settings
@@ -53,7 +53,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ```bash
 # Clone the repository
-git clone https://github.com/opensecretary/open-secretary.git
+git clone https://github.com/MimirLLC/open-secretary.git
 cd open-secretary
 
 # Install dependencies
@@ -69,8 +69,8 @@ npm run build
 ## Support
 
 - [Documentation](https://opensecretary.com/docs)
-- [Issue Tracker](https://github.com/opensecretary/open-secretary/issues)
-- [Discussions](https://github.com/opensecretary/open-secretary/discussions)
+- [Issue Tracker](https://github.com/MimirLLC/open-secretary/issues)
+- [Discussions](https://github.com/MimirLLC/open-secretary/discussions)
 
 ---
 
