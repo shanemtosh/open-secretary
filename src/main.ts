@@ -35,6 +35,7 @@ interface AgentPluginSettings {
     voiceAutoSend: boolean;
     viewPosition: ViewPosition;
     outputStyle: OutputStyle;
+    scanFolder: string;
 }
 
 const DEFAULT_SETTINGS: AgentPluginSettings = {
@@ -47,7 +48,8 @@ const DEFAULT_SETTINGS: AgentPluginSettings = {
     transcriptionModel: "google/gemini-2.5-flash-lite-preview-09-2025",
     voiceAutoSend: false,
     viewPosition: "right",
-    outputStyle: "default"
+    outputStyle: "default",
+    scanFolder: "Inbox"
 }
 
 export default class AgentPlugin extends Plugin {
@@ -62,6 +64,7 @@ export default class AgentPlugin extends Plugin {
 
         this.agent = new Agent(this.app, this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend, this.settings.outputStyle);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
+        this.agent.scanFolder = this.settings.scanFolder;
 
         // Register Tools
         this.agent.registerTool(new ReadFileTool(this.app));
@@ -125,6 +128,7 @@ export default class AgentPlugin extends Plugin {
         await this.saveData(this.settings);
         this.agent.updateSettings(this.settings.openRouterApiKey, this.settings.model, this.settings.contextFile, this.settings.historyFolder, this.settings.researchModel, this.settings.transcriptionModel, this.settings.voiceAutoSend, this.settings.outputStyle);
         this.agent.availableModels = this.settings.availableModels.split(",").map(m => m.trim());
+        this.agent.scanFolder = this.settings.scanFolder;
     }
 }
 
@@ -226,6 +230,17 @@ class AgentSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.voiceAutoSend)
                 .onChange(async (value) => {
                     this.plugin.settings.voiceAutoSend = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName("Scan Folder")
+            .setDesc("Folder where /scan saves transcribed notes (default: Inbox)")
+            .addText(text => text
+                .setPlaceholder("Inbox")
+                .setValue(this.plugin.settings.scanFolder)
+                .onChange(async (value) => {
+                    this.plugin.settings.scanFolder = value;
                     await this.plugin.saveSettings();
                 }));
 

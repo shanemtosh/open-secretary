@@ -1,7 +1,7 @@
 {
 	"id": "open-secretary",
 	"name": "OpenSecretary",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"minAppVersion": "1.7.2",
 	"description": "Interact with your vault using an autonomous AI agent.",
 	"author": "OpenSecretary",

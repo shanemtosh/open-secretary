@@ -25,6 +25,7 @@ export class Agent {
     private tools: Map<string, Tool>;
     private subAgents: Map<string, SubAgent>;
     public availableModels: string[] = [];
+    public scanFolder: string = "Inbox";
     public history: LLMMessage[];
     private abortController: AbortController | null = null;
     public plan: string = "";

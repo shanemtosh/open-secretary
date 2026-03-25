@@ -354,6 +354,10 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     const [isImageTranscribing, setIsImageTranscribing] = React.useState(false);
     const imageInputRef = React.useRef<HTMLInputElement>(null);
 
+    // Scan Mode State
+    const scanInputRef = React.useRef<HTMLInputElement>(null);
+    const [isScanning, setIsScanning] = React.useState(false);
+
     const messagesEndRef = React.useRef<HTMLDivElement>(null);
     const messagesContainerRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLTextAreaElement>(null);
@@ -378,12 +382,10 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
     }, [messages, loading]);
 
     React.useEffect(() => {
-        if (Platform.isMobile) return;
-
         const updatePadding = () => {
             if (inputWrapperRef.current && messagesContainerRef.current) {
                 const wrapperHeight = inputWrapperRef.current.offsetHeight;
-                messagesContainerRef.current.style.paddingBottom = `${wrapperHeight + 32}px`;
+                messagesContainerRef.current.style.paddingBottom = `${wrapperHeight + (Platform.isMobile ? 8 : 32)}px`;
             }
         };
 
@@ -393,7 +395,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
             resizeObserver.observe(inputWrapperRef.current);
         }
         return () => resizeObserver.disconnect();
-    }, [plan, showPlan, showSuggestions, approvalRequest]);
+    }, [plan, showPlan, showSuggestions, approvalRequest, pendingImage]);
 
     // Close dropdowns when clicking outside
     React.useEffect(() => {
@@ -616,7 +618,8 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 { command: "/routine", description: "Run a saved routine", aliases: ["/r"] },
                 { command: "/subagent", description: "Invoke a subagent", aliases: ["/agent"] },
                 { command: "/memory", description: "Access memory store", aliases: ["/mem"] },
-                { command: "/compact", description: "Summarize & compact history", aliases: [] }
+                { command: "/compact", description: "Summarize & compact history", aliases: [] },
+                { command: "/scan", description: "Batch scan images to markdown notes", aliases: [] }
             ];
 
             const routines = await agent.listRoutines();
@@ -747,6 +750,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 - **/subagent [name]** - Invoke a subagent
 - **/memory [key]** - Access memory store
 - **/compact [instructions]** - Summarize conversation & clear history
+- **/scan** - Batch scan images of notes into markdown files
 
 ## File References
 
@@ -1041,6 +1045,14 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 return;
             }
 
+            if (command === "/scan") {
+                setInput("");
+                if (inputRef.current) inputRef.current.style.height = "auto";
+                // Trigger the multi-file picker
+                scanInputRef.current?.click();
+                return;
+            }
+
             if (command === "/subagent") {
                 const parts = userMsg.trim().split(" ");
                 const subAgentName = parts[1];
@@ -1327,6 +1339,68 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         }
     };
 
+    const handleScanFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+
+        const fileList = Array.from(files);
+        const scanFolder = agent.scanFolder || "Inbox";
+
+        setIsScanning(true);
+        setLoading(true);
+        setMessages(prev => [...prev, { role: "user", content: `/scan — ${fileList.length} image${fileList.length > 1 ? "s" : ""} selected` }]);
+
+        const mimeToFormat: Record<string, "jpeg" | "png" | "gif" | "webp"> = {
+            "image/jpeg": "jpeg",
+            "image/png": "png",
+            "image/gif": "gif",
+            "image/webp": "webp",
+        };
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            const format = mimeToFormat[file.type] || "jpeg";
+            const progress = `Scanning ${i + 1}/${fileList.length}: ${file.name}`;
+
+            setMessages(prev => [...prev, { role: "assistant", content: progress }]);
+
+            try {
+                const base64 = await blobToBase64(file);
+                const markdown = await agent.transcribeImage(base64, format);
+
+                // Generate a filename from the original image name or timestamp
+                const baseName = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_\- ]/g, "_");
+                const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                const noteName = `${scanFolder}/${baseName}_${timestamp}.md`;
+
+                // Ensure scan folder exists
+                if (!(await agent.app.vault.adapter.exists(scanFolder))) {
+                    await agent.app.vault.adapter.mkdir(scanFolder);
+                }
+
+                await agent.app.vault.create(noteName, markdown);
+                successCount++;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                setMessages(prev => [...prev, { role: "assistant", content: `Failed: ${file.name} — ${errorMessage}` }]);
+                failCount++;
+            }
+        }
+
+        const summary = `Scan complete: ${successCount} note${successCount !== 1 ? "s" : ""} saved to **${scanFolder}/**` +
+            (failCount > 0 ? `, ${failCount} failed` : "");
+        setMessages(prev => [...prev, { role: "assistant", content: summary }]);
+
+        setLoading(false);
+        setIsScanning(false);
+
+        // Reset file input
+        if (scanInputRef.current) scanInputRef.current.value = "";
+    };
+
     const handleSuggestionClick = (suggestion: string | { display: string, description: string, insert: string }) => {
         insertSuggestion(suggestion);
     };
@@ -1359,6 +1433,15 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
     return (
         <div className={`agent-chat-container ${Platform.isMobile ? "mobile" : ""}`}>
+            {/* Hidden multi-file input for /scan */}
+            <input
+                ref={scanInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScanFiles}
+                style={{ display: "none" }}
+            />
             <div className="agent-chat-messages" ref={messagesContainerRef}>
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`agent-message ${msg.role} ${msg.type === "tool" ? "tool" : ""}`}>
