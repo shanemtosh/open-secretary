@@ -12,7 +12,8 @@ import {
     MarkdownRenderer,
     Notice,
     Component,
-    Platform
+    Platform,
+    normalizePath
 } from "obsidian";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
@@ -41,7 +42,7 @@ const SessionList = ({ sessions, onSelect }: { sessions: string[], onSelect: (pa
             <div className="agent-session-header">Saved Sessions</div>
             {sessions.map((path, i) => (
                 <div key={i} className="agent-session-item" onClick={() => onSelect(path)}>
-                    <IconHistory size={14} style={{ marginRight: "6px" }} />
+                    <IconHistory size={14} className="agent-icon-spacer" />
                     <span className="agent-session-name">{path.split("/").pop()}</span>
                 </div>
             ))}
@@ -730,7 +731,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 agent.stop(); // Ensure we actually stop the agent
                 setLoading(false);
                 setInput("");
-                setMessages(prev => [...prev, { role: "assistant", content: "<span style='color: var(--destructive);'>Action cancelled by user.</span>" }]);
+                setMessages(prev => [...prev, { role: "assistant", content: "<span class='agent-cancel-text'>Action cancelled by user.</span>" }]);
                 return;
             }
 
@@ -1344,7 +1345,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
         if (!files || files.length === 0) return;
 
         const fileList = Array.from(files);
-        const scanFolder = agent.scanFolder || "Inbox";
+        const scanFolder = normalizePath(agent.scanFolder || "Inbox");
 
         setIsScanning(true);
         setLoading(true);
@@ -1374,7 +1375,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 // Generate a filename from the original image name or timestamp
                 const baseName = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_\- ]/g, "_");
                 const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-                const noteName = `${scanFolder}/${baseName}_${timestamp}.md`;
+                const noteName = normalizePath(`${scanFolder}/${baseName}_${timestamp}.md`);
 
                 // Ensure scan folder exists
                 if (!(await agent.app.vault.adapter.exists(scanFolder))) {
@@ -1440,7 +1441,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 accept="image/*"
                 multiple
                 onChange={handleScanFiles}
-                style={{ display: "none" }}
+                className="agent-hidden"
             />
             <div className="agent-chat-messages" ref={messagesContainerRef}>
                 {messages.map((msg, idx) => (
@@ -1511,9 +1512,9 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 onClick={() => handleSuggestionClick(s)}
                             >
                                 {typeof s === 'string' ? s : (
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontWeight: 500 }}>{s.display}</span>
-                                        {s.description && <span style={{ opacity: 0.5, fontSize: '0.8em', marginLeft: '10px' }}>{s.description}</span>}
+                                    <div className="agent-suggestion-detail">
+                                        <span className="agent-suggestion-name">{s.display}</span>
+                                        {s.description && <span className="agent-suggestion-desc">{s.description}</span>}
                                     </div>
                                 )}
                             </div>
@@ -1524,7 +1525,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
 
 
                 {activeDropdown === "model" && (
-                    <div className="agent-dropdown-content" style={{ bottom: "100%", left: "0", marginBottom: "0.5rem" }}>
+                    <div className="agent-dropdown-content agent-dropdown-above">
                         {agent.availableModels.map((m, i) => (
                             <div key={i} className="agent-dropdown-item" onClick={() => handleModelChange(m)}>
                                 <IconDeviceLaptop size={16} /> {m.split("/").pop()}
@@ -1534,7 +1535,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                 )}
 
                 {activeDropdown === "mode" && (
-                    <div className="agent-dropdown-content" style={{ bottom: "100%", left: "0", marginBottom: "0.5rem" }}>
+                    <div className="agent-dropdown-content agent-dropdown-above">
                         <div className="agent-dropdown-item" onClick={() => { agent.setMode("high"); setActiveDropdown(null); }}>
                             <IconCircle size={16} /> High
                         </div>
@@ -1557,7 +1558,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 accept="image/*"
                                 capture="environment"
                                 onChange={handleImageSelect}
-                                style={{ display: "none" }}
+                                className="agent-hidden"
                             />
 
                             {/* Image preview strip (above input row) */}
@@ -1580,20 +1581,19 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 placeholder={isRecording ? "Recording..." : isTranscribing ? "Transcribing..." : isImageTranscribing ? "Transcribing image..." : pendingImage ? "Add instructions (optional)..." : "Message..."}
                                 rows={1}
                             />
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <div className="agent-btn-group">
                                 {/* Camera button - only show when no image is pending and not busy */}
                                 {!pendingImage && !loading && !isRecording && (
                                     <button
-                                        className="agent-btn-send mic-mode"
+                                        className="agent-btn-send mic-mode bg-muted"
                                         onClick={() => imageInputRef.current?.click()}
                                         title="Capture image"
-                                        style={{ backgroundColor: "var(--claude-popover-bg)" }}
                                     >
                                         <IconCamera size={18} />
                                     </button>
                                 )}
                                 <button
-                                    className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""}`}
+                                    className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""} ${loading || isRecording ? "bg-destructive" : pendingImage || input.trim() ? "bg-send" : "bg-muted"}`}
                                     onClick={() => {
                                         if (loading) {
                                             handleCancel();
@@ -1608,18 +1608,11 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                         }
                                     }}
                                     disabled={isTranscribing || isImageTranscribing}
-                                    style={{
-                                        backgroundColor: loading ? "var(--destructive)" :
-                                            isRecording ? "var(--destructive)" :
-                                            pendingImage ? "var(--claude-send-btn)" :
-                                            !input.trim() ? "var(--claude-popover-bg)" :
-                                            "var(--claude-send-btn)"
-                                    }}
                                 >
                                     {isTranscribing || isImageTranscribing ? (
                                         <div className="agent-mic-spinner" />
                                     ) : loading ? (
-                                        <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
+                                        <div className="agent-stop-icon" />
                                     ) : isRecording ? (
                                         <IconPlayerStop size={18} />
                                     ) : pendingImage ? (
@@ -1641,7 +1634,7 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 type="file"
                                 accept="image/*"
                                 onChange={handleImageSelect}
-                                style={{ display: "none" }}
+                                className="agent-hidden"
                             />
 
                             {/* Image preview strip */}
@@ -1670,28 +1663,27 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                 <div className="agent-ai03-left-actions">
                                     <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "model" ? null : "model")}>
                                         <span className="agent-model-name">{currentModel.split("/").pop()}</span>
-                                        <IconChevronDown size={14} style={{ opacity: 0.5 }} />
+                                        <IconChevronDown size={14} className="agent-icon-muted" />
                                     </button>
 
                                     <button className="agent-model-selector" onClick={() => setActiveDropdown(activeDropdown === "mode" ? null : "mode")}>
                                         <span className="agent-model-name">{mode === "high" ? "High" : (mode === "low" ? "Low" : "Plan")}</span>
-                                        <IconChevronDown size={14} style={{ opacity: 0.5 }} />
+                                        <IconChevronDown size={14} className="agent-icon-muted" />
                                     </button>
                                 </div>
-                                <div className="agent-ai03-right-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <div className="agent-ai03-right-actions">
                                     {/* Camera button */}
                                     {!pendingImage && !loading && !isRecording && (
                                         <button
-                                            className="agent-btn-send mic-mode"
+                                            className="agent-btn-send mic-mode bg-muted"
                                             onClick={() => imageInputRef.current?.click()}
                                             title="Upload image of notes"
-                                            style={{ backgroundColor: "var(--claude-popover-bg)" }}
                                         >
                                             <IconCamera size={18} />
                                         </button>
                                     )}
                                     <button
-                                        className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""}`}
+                                        className={`agent-btn-send ${isRecording ? "recording" : ""} ${!input.trim() && !pendingImage && !loading ? "mic-mode" : ""} ${loading || isRecording ? "bg-destructive" : pendingImage || input.trim() ? "bg-send" : "bg-muted"}`}
                                         onClick={() => {
                                             if (loading) {
                                                 handleCancel();
@@ -1707,18 +1699,11 @@ const ChatComponent = ({ agent, view }: { agent: Agent, view: ChatView }) => {
                                         }}
                                         disabled={isTranscribing || isImageTranscribing}
                                         title={isRecording ? "Stop recording" : pendingImage ? "Send image" : !input.trim() ? "Start voice input" : "Send message"}
-                                        style={{
-                                            backgroundColor: loading ? "var(--destructive)" :
-                                                isRecording ? "var(--destructive)" :
-                                                pendingImage ? "var(--claude-send-btn)" :
-                                                !input.trim() ? "var(--claude-popover-bg)" :
-                                                "var(--claude-send-btn)"
-                                        }}
                                     >
                                         {isTranscribing || isImageTranscribing ? (
                                             <div className="agent-mic-spinner" />
                                         ) : loading ? (
-                                            <div style={{ width: "10px", height: "10px", background: "white", borderRadius: "2px" }} />
+                                            <div className="agent-stop-icon" />
                                         ) : isRecording ? (
                                             <IconPlayerStop size={18} />
                                         ) : pendingImage ? (

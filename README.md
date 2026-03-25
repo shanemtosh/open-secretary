@@ -12,7 +12,21 @@ An autonomous AI agent system for [Obsidian](https://obsidian.md). Interact with
 - **File Operations** - Read, write, edit, and organize files in your vault
 - **Smart Search** - Semantic search across your notes
 - **Sub-Agents** - Specialized agents for research, writing, and exploration
+- **Voice Input** - Speak to transcribe messages via speech-to-text
+- **Image-to-Markdown** - Capture photos of handwritten notes and convert to markdown
+- **Batch Scanning** - Use `/scan` to process multiple images into notes at once
 - **Flexible Models** - Support for multiple LLM providers via OpenRouter
+
+## Network Usage
+
+This plugin requires an internet connection and an [OpenRouter](https://openrouter.ai) API key. The following data is sent to OpenRouter's API servers (`openrouter.ai/api/v1/chat/completions`):
+
+- **Chat messages** you send to the agent (text content)
+- **Voice recordings** (converted to audio) for speech-to-text transcription
+- **Images** you capture or upload for image-to-markdown transcription
+- **Vault file contents** when the agent reads files to fulfill your requests
+
+No data is sent without user action. No telemetry or analytics are collected. All API communication uses HTTPS. Your OpenRouter API key is stored locally in the plugin settings and never shared with any other service.
 
 ## Installation
 

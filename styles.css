@@ -776,3 +776,77 @@
 	justify-content: center;
 	padding: 0;
 }
+
+/* Utility classes (avoid inline styles per Obsidian guidelines) */
+.agent-hidden {
+	display: none;
+}
+
+.agent-icon-spacer {
+	margin-right: 6px;
+}
+
+.agent-icon-muted {
+	opacity: 0.5;
+}
+
+.agent-cancel-text {
+	color: var(--destructive);
+}
+
+.agent-stop-icon {
+	width: 10px;
+	height: 10px;
+	background: white;
+	border-radius: 2px;
+}
+
+/* Suggestion item layout */
+.agent-suggestion-detail {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.agent-suggestion-name {
+	font-weight: 500;
+}
+
+.agent-suggestion-desc {
+	opacity: 0.5;
+	font-size: 0.8em;
+	margin-left: 10px;
+}
+
+/* Dropdown positioning */
+.agent-dropdown-content.agent-dropdown-above {
+	bottom: 100%;
+	left: 0;
+	margin-bottom: 0.5rem;
+}
+
+/* Button group layout */
+.agent-btn-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* Send button state styles */
+.agent-btn-send.bg-destructive {
+	background-color: var(--destructive);
+}
+
+.agent-btn-send.bg-send {
+	background-color: var(--claude-send-btn);
+}
+
+.agent-btn-send.bg-muted {
+	background-color: var(--claude-popover-bg);
+}
+
+.agent-ai03-right-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}

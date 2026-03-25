@@ -117,7 +117,7 @@ export default class AgentPlugin extends Plugin {
     }
 
     onunload() {
-
+        this.agent.stop();
     }
 
     async loadSettings() {

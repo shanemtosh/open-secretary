@@ -242,7 +242,7 @@ Start by listing the root directory.
                 contextContent = await this.app.vault.read(file);
             }
         } catch (e) {
-            console.warn("Failed to read context file:", e);
+            console.error("Failed to read context file:", e);
         }
 
         let modeInstructions = "";
@@ -389,7 +389,7 @@ IMPORTANT RULES:
                     if (toolCall.tool) {
                         const tool = this.tools.get(toolCall.tool);
                         if (!tool) {
-                            console.warn(`Tool '${toolCall.tool}' not found in registered tools`);
+                            console.error(`Tool '${toolCall.tool}' not found in registered tools`);
                         } else {
                             const destructiveTools = ["write_file", "edit_file", "append_file", "delete_file", "move_file", "create_dir"];
                             const isDestructive = destructiveTools.includes(tool.name);
@@ -432,7 +432,7 @@ IMPORTANT RULES:
                         }
                     }
                 } catch (parseError) {
-                    console.warn("Failed to parse tool call JSON:", parseError);
+                    console.error("Failed to parse tool call JSON:", parseError);
                 }
             }
 
